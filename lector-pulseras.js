@@ -6,67 +6,123 @@ const $ = (id) =>
   document.getElementById(id);
 
 const state = {
+  selectedGroup: null,
   sessionToken: "",
-  numeroNegocio: "",
-  grupo: null,
-  leyendo: false,
-  listaGrupal: []
+  activeGroup: null,
+
+  groupResults: [],
+  groupPassengerList: [],
+  lastGroupResponse: null,
+
+  reading: false
 };
 
 init();
 
 function init() {
   bindEvents();
-  comprobarCompatibilidadNfc();
+  comprobarNfc();
   restaurarSesion();
 }
 
 function bindEvents() {
-  $("btnIngresarGrupo")
+  $("btnBuscarGrupo")
     ?.addEventListener(
       "click",
-      ingresarGrupo
+      buscarGrupos
     );
 
-  $("numeroNegocio")
+  $("buscarGrupoInput")
     ?.addEventListener(
       "keydown",
       (event) => {
-        if (event.key === "Enter") {
-          ingresarGrupo();
+        if (
+          event.key ===
+          "Enter"
+        ) {
+          buscarGrupos();
         }
       }
     );
 
-  $("btnCambiarGrupo")
+  $("resultadosGrupos")
     ?.addEventListener(
       "click",
-      cerrarGrupo
+      (event) => {
+        const button =
+          event.target.closest(
+            "[data-group-index]"
+          );
+
+        if (!button) {
+          return;
+        }
+
+        seleccionarGrupo(
+          Number(
+            button.dataset.groupIndex
+          )
+        );
+      }
+    );
+
+  $("btnCambiarSeleccion")
+    ?.addEventListener(
+      "click",
+      volverABusqueda
+    );
+
+  $("btnValidarClave")
+    ?.addEventListener(
+      "click",
+      validarNumeroNegocio
+    );
+
+  $("numeroNegocioInput")
+    ?.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key ===
+          "Enter"
+        ) {
+          validarNumeroNegocio();
+        }
+      }
+    );
+
+  $("btnCerrarGrupo")
+    ?.addEventListener(
+      "click",
+      cerrarSesionGrupo
     );
 
   $("btnLeerPulsera")
     ?.addEventListener(
       "click",
-      leerPulsera
+      leerPulseraNfc
     );
 
-  $("btnMostrarManual")
+  $("btnToggleManual")
     ?.addEventListener(
       "click",
       toggleManual
     );
 
-  $("btnBuscarManual")
+  $("btnBuscarCodigoManual")
     ?.addEventListener(
       "click",
       buscarCodigoManual
     );
 
-  $("codigoManual")
+  $("codigoManualInput")
     ?.addEventListener(
       "keydown",
       (event) => {
-        if (event.key === "Enter") {
+        if (
+          event.key ===
+          "Enter"
+        ) {
           buscarCodigoManual();
         }
       }
@@ -78,9 +134,9 @@ function bindEvents() {
       (event) => {
         if (
           event.target.id ===
-          "buscarPasajeroGrupo"
+          "buscarPasajeroInput"
         ) {
-          renderListaGrupal(
+          renderPassengerList(
             event.target.value
           );
         }
@@ -91,100 +147,314 @@ function bindEvents() {
     ?.addEventListener(
       "click",
       (event) => {
-        const button =
+        const passengerButton =
           event.target.closest(
-            "[data-inscripcion-id]"
+            "[data-inscription-id]"
           );
 
-        if (!button) {
+        if (!passengerButton) {
           return;
         }
 
-        cargarPasajeroGrupal(
-          button.dataset.inscripcionId
+        cargarPasajeroGrupo(
+          passengerButton.dataset
+            .inscriptionId
         );
+      }
+    );
+
+  $("btnVolverNomina")
+    ?.addEventListener(
+      "click",
+      () => {
+        if (
+          state.lastGroupResponse
+        ) {
+          renderGroupResult(
+            state.lastGroupResponse
+          );
+        }
       }
     );
 }
 
-async function restaurarSesion() {
-  const token =
-    sessionStorage.getItem(
-      PORTAL_CONFIG.sessionStorageKey
-    ) || "";
-
-  const negocio =
-    sessionStorage.getItem(
-      PORTAL_CONFIG.negocioStorageKey
-    ) || "";
+async function buscarGrupos() {
+  const texto =
+    String(
+      $("buscarGrupoInput")
+        ?.value ||
+      ""
+    ).trim();
 
   if (
-    !token ||
-    !negocio
+    texto.length < 2
   ) {
-    return;
-  }
-
-  state.sessionToken =
-    token;
-
-  state.numeroNegocio =
-    negocio;
-
-  setAccesoEstado(
-    "Restaurando acceso..."
-  );
-
-  try {
-    const response =
-      await llamarApi(
-        "estadoSesion",
-        {}
-      );
-
-    aplicarGrupoAutorizado(
-      response.grupo
-    );
-
-    setLectorEstado(
-      "Sesión restaurada. Ya puedes leer una pulsera.",
-      false,
-      true
-    );
-  } catch {
-    limpiarSesionLocal();
-  }
-}
-
-async function ingresarGrupo() {
-  const numeroNegocio =
-    sanitizarNegocio(
-      $("numeroNegocio")
-        ?.value
-    );
-
-  if (!numeroNegocio) {
-    setAccesoEstado(
-      "Ingresa el número de negocio.",
+    setState(
+      "buscarGrupoEstado",
+      "Escribe al menos dos caracteres.",
       true
     );
 
     return;
   }
 
-  bloquearIngreso(
+  setDisabled(
+    "btnBuscarGrupo",
     true
   );
 
-  setAccesoEstado(
-    "Validando el grupo..."
+  setState(
+    "buscarGrupoEstado",
+    "Buscando grupos..."
   );
 
   try {
     const response =
-      await llamarApiSinSesion(
+      await callApiPublic(
+        "buscarGrupos",
+        {
+          texto
+        }
+      );
+
+    state.groupResults =
+      Array.isArray(
+        response.grupos
+      )
+        ? response.grupos
+        : [];
+
+    renderGroupResults();
+
+    setState(
+      "buscarGrupoEstado",
+      state.groupResults.length
+        ? `${state.groupResults.length} grupo(s) encontrado(s).`
+        : "No se encontraron grupos.",
+      false,
+      state.groupResults.length > 0
+    );
+  } catch (error) {
+    state.groupResults =
+      [];
+
+    $("resultadosGrupos")
+      .classList
+      .add("hidden");
+
+    setState(
+      "buscarGrupoEstado",
+      error.message ||
+      "No fue posible buscar grupos.",
+      true
+    );
+  } finally {
+    setDisabled(
+      "btnBuscarGrupo",
+      false
+    );
+  }
+}
+
+function renderGroupResults() {
+  const container =
+    $("resultadosGrupos");
+
+  if (
+    !state.groupResults.length
+  ) {
+    container.innerHTML =
+      "";
+
+    container.classList
+      .add("hidden");
+
+    return;
+  }
+
+  container.innerHTML =
+    state.groupResults
+      .map(
+        (
+          group,
+          index
+        ) => `
+          <button
+            class="group-result"
+            type="button"
+            data-group-index="${index}"
+          >
+            <span>
+              <strong>
+                ${esc(
+                  group.nombre ||
+                  group.colegio ||
+                  `Grupo ${group.idGrupo || ""}`
+                )}
+              </strong>
+
+              <span>
+                ${esc(
+                  [
+                    group.colegio,
+                    group.curso,
+                    group.destino,
+                    group.anoViaje
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                )}
+              </span>
+            </span>
+
+            <em>
+              Seleccionar
+            </em>
+          </button>
+        `
+      )
+      .join("");
+
+  container.classList
+    .remove("hidden");
+}
+
+function seleccionarGrupo(
+  index
+) {
+  const group =
+    state.groupResults[
+      index
+    ];
+
+  if (!group) {
+    return;
+  }
+
+  state.selectedGroup =
+    group;
+
+  renderSelectedGroup(
+    group
+  );
+
+  $("buscarGrupoPanel")
+    .classList
+    .add("hidden");
+
+  $("validarClavePanel")
+    .classList
+    .remove("hidden");
+
+  $("numeroNegocioInput")
+    .value =
+    "";
+
+  setState(
+    "validarClaveEstado",
+    "Ingresa el número de negocio del grupo seleccionado."
+  );
+
+  window.setTimeout(
+    () =>
+      $("numeroNegocioInput")
+        ?.focus(),
+    80
+  );
+}
+
+function renderSelectedGroup(
+  group
+) {
+  $("grupoSeleccionadoTitulo")
+    .textContent =
+    group.nombre ||
+    group.colegio ||
+    "Grupo seleccionado";
+
+  $("grupoSeleccionadoDetalle")
+    .textContent =
+    [
+      group.colegio,
+      group.curso,
+      group.destino,
+      group.anoViaje
+    ]
+      .filter(Boolean)
+      .join(" · ") ||
+    "—";
+}
+
+function volverABusqueda() {
+  state.selectedGroup =
+    null;
+
+  $("validarClavePanel")
+    .classList
+    .add("hidden");
+
+  $("buscarGrupoPanel")
+    .classList
+    .remove("hidden");
+
+  $("numeroNegocioInput")
+    .value =
+    "";
+}
+
+async function validarNumeroNegocio() {
+  if (
+    !state.selectedGroup
+  ) {
+    setState(
+      "validarClaveEstado",
+      "Primero selecciona un grupo.",
+      true
+    );
+
+    return;
+  }
+
+  const numeroNegocio =
+    String(
+      $("numeroNegocioInput")
+        ?.value ||
+      ""
+    ).trim();
+
+  if (
+    normalizarNumeroNegocio(
+      numeroNegocio
+    ).length < 4
+  ) {
+    setState(
+      "validarClaveEstado",
+      "Ingresa el número de negocio completo.",
+      true
+    );
+
+    return;
+  }
+
+  setDisabled(
+    "btnValidarClave",
+    true
+  );
+
+  setState(
+    "validarClaveEstado",
+    "Validando número de negocio..."
+  );
+
+  try {
+    const response =
+      await callApiPublic(
         "iniciarSesion",
         {
+          groupDocId:
+            state.selectedGroup
+              .groupDocId,
+
           numeroNegocio
         }
       );
@@ -192,121 +462,174 @@ async function ingresarGrupo() {
     state.sessionToken =
       response.sessionToken;
 
-    state.numeroNegocio =
-      numeroNegocio;
+    state.activeGroup =
+      response.grupo;
 
     sessionStorage.setItem(
-      PORTAL_CONFIG.sessionStorageKey,
+      PORTAL_CONFIG.sessionTokenKey,
       state.sessionToken
     );
 
     sessionStorage.setItem(
-      PORTAL_CONFIG.negocioStorageKey,
-      state.numeroNegocio
+      PORTAL_CONFIG.selectedGroupKey,
+      JSON.stringify(
+        state.activeGroup
+      )
     );
 
-    aplicarGrupoAutorizado(
-      response.grupo
-    );
-
-    setLectorEstado(
-      "Acceso habilitado. Presiona “Leer pulsera NFC”.",
-      false,
-      true
-    );
+    abrirLector();
   } catch (error) {
-    setAccesoEstado(
+    setState(
+      "validarClaveEstado",
       error.message ||
-      "No se pudo validar el grupo.",
+      "El número de negocio no coincide con el grupo.",
       true
     );
   } finally {
-    bloquearIngreso(
+    setDisabled(
+      "btnValidarClave",
       false
     );
   }
 }
 
-function aplicarGrupoAutorizado(
-  grupo = {}
-) {
-  state.grupo =
-    grupo;
+function abrirLector() {
+  const group =
+    state.activeGroup ||
+    {};
 
-  $("grupoTitulo")
+  $("grupoActivoTitulo")
     .textContent =
-    grupo.numeroNegocio
-      ? `Grupo ${grupo.numeroNegocio}`
-      : "Grupo autorizado";
+    group.nombre ||
+    group.colegio ||
+    "Grupo autorizado";
 
-  $("grupoDetalle")
+  $("grupoActivoDetalle")
     .textContent =
     [
-      grupo.nombre ||
-      grupo.colegio ||
-      "",
-      grupo.curso ||
-      "",
-      grupo.destino ||
-      ""
+      group.colegio,
+      group.curso,
+      group.destino,
+      group.anoViaje
     ]
       .filter(Boolean)
       .join(" · ") ||
     "Acceso autorizado";
 
-  $("accesoPanel")
+  $("buscarGrupoPanel")
     .classList
     .add("hidden");
 
-  $("grupoPanel")
+  $("validarClavePanel")
+    .classList
+    .add("hidden");
+
+  $("lectorPanel")
     .classList
     .remove("hidden");
 
   $("resultadoPanel")
     .classList
     .add("hidden");
-}
 
-function cerrarGrupo() {
-  limpiarSesionLocal();
-
-  state.grupo =
-    null;
-
-  state.listaGrupal =
-    [];
-
-  $("numeroNegocio")
-    .value =
-    "";
-
-  $("codigoManual")
-    .value =
-    "";
-
-  $("grupoPanel")
-    .classList
-    .add("hidden");
-
-  $("resultadoPanel")
-    .classList
-    .add("hidden");
-
-  $("accesoPanel")
-    .classList
-    .remove("hidden");
-
-  setAccesoEstado(
-    "Ingresa el número de negocio para comenzar."
+  setState(
+    "lectorEstado",
+    "Acceso habilitado. Presiona “Leer pulsera NFC”.",
+    false,
+    true
   );
 }
 
-async function leerPulsera() {
+async function restaurarSesion() {
+  const token =
+    sessionStorage.getItem(
+      PORTAL_CONFIG.sessionTokenKey
+    ) ||
+    "";
+
+  if (!token) {
+    return;
+  }
+
+  state.sessionToken =
+    token;
+
+  try {
+    const response =
+      await callApiSession(
+        "estadoSesion",
+        {}
+      );
+
+    state.activeGroup =
+      response.grupo;
+
+    abrirLector();
+  } catch {
+    limpiarSesion();
+  }
+}
+
+function cerrarSesionGrupo() {
+  limpiarSesion();
+
+  state.selectedGroup =
+    null;
+
+  state.activeGroup =
+    null;
+
+  state.groupPassengerList =
+    [];
+
+  state.lastGroupResponse =
+    null;
+
+  $("lectorPanel")
+    .classList
+    .add("hidden");
+
+  $("resultadoPanel")
+    .classList
+    .add("hidden");
+
+  $("validarClavePanel")
+    .classList
+    .add("hidden");
+
+  $("buscarGrupoPanel")
+    .classList
+    .remove("hidden");
+
+  $("buscarGrupoInput")
+    .value =
+    "";
+
+  $("numeroNegocioInput")
+    .value =
+    "";
+
+  $("codigoManualInput")
+    .value =
+    "";
+
+  $("resultadosGrupos")
+    .classList
+    .add("hidden");
+
+  setState(
+    "buscarGrupoEstado",
+    "Escribe al menos dos caracteres para buscar."
+  );
+}
+
+async function leerPulseraNfc() {
   if (
     !state.sessionToken
   ) {
-    setLectorEstado(
-      "Primero debes ingresar al grupo.",
+    setState(
+      "lectorEstado",
+      "La sesión del grupo no está activa.",
       true
     );
 
@@ -316,8 +639,9 @@ async function leerPulsera() {
   if (
     !("NDEFReader" in window)
   ) {
-    setLectorEstado(
-      "Este navegador no soporta Web NFC. Usa Chrome en un teléfono Android o prueba escribiendo el código manualmente.",
+    setState(
+      "lectorEstado",
+      "Web NFC no está disponible. Usa Chrome en Android o prueba escribiendo el código.",
       true
     );
 
@@ -325,26 +649,27 @@ async function leerPulsera() {
   }
 
   if (
-    state.leyendo
+    state.reading
   ) {
     return;
   }
 
-  state.leyendo =
+  state.reading =
     true;
 
-  actualizarBotonLectura();
+  updateReadButton();
 
-  setLectorEstado(
+  setState(
+    "lectorEstado",
     "Acerca la pulsera a la parte posterior del teléfono..."
   );
 
   try {
-    const ndef =
-      new NDEFReader();
-
     const controller =
       new AbortController();
+
+    const ndef =
+      new NDEFReader();
 
     await ndef.scan({
       signal:
@@ -354,8 +679,9 @@ async function leerPulsera() {
     ndef.addEventListener(
       "readingerror",
       () => {
-        setLectorEstado(
-          "No se pudo leer la pulsera. Inténtalo nuevamente.",
+        setState(
+          "lectorEstado",
+          "No fue posible leer la pulsera. Inténtalo nuevamente.",
           true
         );
       },
@@ -371,12 +697,13 @@ async function leerPulsera() {
         event
       ) => {
         const codigo =
-          extraerCodigoNdef(
+          extractTextCode(
             event.message
           );
 
         if (!codigo) {
-          setLectorEstado(
+          setState(
+            "lectorEstado",
             "La pulsera no contiene un código de texto válido.",
             true
           );
@@ -390,10 +717,10 @@ async function leerPulsera() {
           codigo
         );
 
-        state.leyendo =
+        state.reading =
           false;
 
-        actualizarBotonLectura();
+        updateReadButton();
       },
       {
         signal:
@@ -402,17 +729,18 @@ async function leerPulsera() {
     );
   } catch (error) {
     console.error(
-      "[lector-pulseras] leerPulsera",
+      "[lector-pulseras] NFC",
       error
     );
 
-    state.leyendo =
+    state.reading =
       false;
 
-    actualizarBotonLectura();
+    updateReadButton();
 
-    setLectorEstado(
-      traducirErrorNfc(
+    setState(
+      "lectorEstado",
+      translateNfcError(
         error
       ),
       true
@@ -422,14 +750,15 @@ async function leerPulsera() {
 
 async function buscarCodigoManual() {
   const codigo =
-    sanitizarCodigo(
-      $("codigoManual")
+    sanitizeCode(
+      $("codigoManualInput")
         ?.value
     );
 
   if (!codigo) {
-    setLectorEstado(
-      "Escribe un código para probar.",
+    setState(
+      "lectorEstado",
+      "Escribe un código válido.",
       true
     );
 
@@ -442,26 +771,52 @@ async function buscarCodigoManual() {
 }
 
 async function consultarCodigo(
-  codigo
+  codigoRaw
 ) {
-  setLectorEstado(
+  const codigo =
+    sanitizeCode(
+      codigoRaw
+    );
+
+  setState(
+    "lectorEstado",
     `Consultando ${codigo}...`
   );
 
   try {
     const response =
-      await llamarApi(
+      await callApiSession(
         "consultarPulsera",
         {
           codigo
         }
       );
 
-    renderResultado(
-      response
-    );
+    if (
+      response.modalidad ===
+      "grupal"
+    ) {
+      state.lastGroupResponse =
+        response;
 
-    setLectorEstado(
+      state.groupPassengerList =
+        Array.isArray(
+          response.pasajeros
+        )
+          ? response.pasajeros
+          : [];
+
+      renderGroupResult(
+        response
+      );
+    } else {
+      renderIndividualResult(
+        response
+      );
+    }
+
+    setState(
+      "lectorEstado",
       "Pulsera identificada correctamente.",
       false,
       true
@@ -475,9 +830,10 @@ async function consultarCodigo(
       .classList
       .add("hidden");
 
-    setLectorEstado(
+    setState(
+      "lectorEstado",
       error.message ||
-      "No se pudo consultar la pulsera.",
+      "No fue posible consultar la pulsera.",
       true
     );
 
@@ -487,178 +843,165 @@ async function consultarCodigo(
   }
 }
 
-function renderResultado(
+function renderIndividualResult(
   response
 ) {
-  const modalidad =
-    response.modalidad;
+  const passenger =
+    response.pasajero ||
+    {};
 
   $("resultadoTipo")
     .textContent =
-    modalidad === "individual"
-      ? "Pulsera individual"
-      : "Pulsera grupal";
+    "Pulsera individual";
 
   $("resultadoCodigo")
     .textContent =
     response.codigo ||
     "—";
 
-  if (
-    modalidad ===
-    "individual"
-  ) {
-    renderPasajeroIndividual(
-      response.pasajero,
-      response.grupo
+  $("btnVolverNomina")
+    .classList.toggle(
+      "hidden",
+      !state.lastGroupResponse
     );
-  } else {
-    state.listaGrupal =
-      Array.isArray(
-        response.pasajeros
-      )
-        ? response.pasajeros
-        : [];
 
-    renderGrupoCompleto(
-      response.grupo
+  $("resultadoContenido")
+    .innerHTML =
+    buildPassengerHtml(
+      passenger,
+      response.grupo ||
+      state.activeGroup ||
+      {}
     );
-  }
 
-  $("resultadoPanel")
+  showResult();
+}
+
+function renderGroupResult(
+  response
+) {
+  const group =
+    response.grupo ||
+    state.activeGroup ||
+    {};
+
+  $("resultadoTipo")
+    .textContent =
+    "Pulsera grupal";
+
+  $("resultadoCodigo")
+    .textContent =
+    response.codigo ||
+    "GRUPO";
+
+  $("btnVolverNomina")
     .classList
-    .remove("hidden");
+    .add("hidden");
 
-  $("resultadoPanel")
-    .scrollIntoView({
-      behavior:
-        "smooth",
-      block:
-        "start"
-    });
-}
-
-function renderPasajeroIndividual(
-  pasajero = {},
-  grupo = {}
-) {
   $("resultadoContenido")
     .innerHTML = `
-      ${crearCabeceraPasajero(
-        pasajero,
-        grupo
-      )}
-
-      ${crearDatosBasicos(
-        pasajero
-      )}
-
-      ${crearSeccionMedica(
-        pasajero
-      )}
-    `;
-}
-
-function renderGrupoCompleto(
-  grupo = {}
-) {
-  $("resultadoContenido")
-    .innerHTML = `
-      <div class="result-header">
-        <h3 class="result-name">
+      <div class="person-header">
+        <h3>
           ${esc(
-            grupo.nombre ||
-            grupo.colegio ||
-            `Grupo ${grupo.numeroNegocio || ""}`
+            group.nombre ||
+            group.colegio ||
+            "Grupo"
           )}
         </h3>
 
-        <p class="result-subtitle">
+        <p>
           ${esc(
             [
-              grupo.curso || "",
-              grupo.destino || ""
+              group.curso,
+              group.destino,
+              group.anoViaje
             ]
               .filter(Boolean)
-              .join(" · ") ||
-            "Pulsera general del grupo"
+              .join(" · ")
           )}
         </p>
+
+        <div class="status-row">
+          <span class="status-pill ok">
+            ${state.groupPassengerList.length} pasajero(s)
+          </span>
+        </div>
       </div>
 
       <div class="passenger-search">
         <label
           class="field-label"
-          for="buscarPasajeroGrupo"
+          for="buscarPasajeroInput"
         >
           Buscar pasajero
         </label>
 
         <input
-          id="buscarPasajeroGrupo"
-          class="reader-input"
+          id="buscarPasajeroInput"
+          class="portal-input"
           type="search"
           autocomplete="off"
           placeholder="Nombre, apellido o RUT"
         />
 
         <div
-          id="listaPasajerosGrupo"
+          id="listaPasajeros"
           class="passenger-list"
         ></div>
       </div>
     `;
 
-  renderListaGrupal();
+  renderPassengerList();
+
+  showResult();
 }
 
-function renderListaGrupal(
-  filtro = ""
+function renderPassengerList(
+  filter = ""
 ) {
-  const contenedor =
-    $("listaPasajerosGrupo");
+  const container =
+    $("listaPasajeros");
 
-  if (!contenedor) {
+  if (!container) {
     return;
   }
 
-  const criterio =
-    normalizarBusqueda(
-      filtro
+  const query =
+    normalizeSearch(
+      filter
     );
 
-  const filtrados =
-    state.listaGrupal
+  const rows =
+    state.groupPassengerList
       .filter(
         (
           item
         ) => {
-          if (!criterio) {
+          if (!query) {
             return true;
           }
 
-          const texto =
-            normalizarBusqueda(
-              [
-                item.nombreCompleto,
-                item.rut,
-                item.tipo
-              ].join(" ")
-            );
-
-          return texto.includes(
-            criterio
+          return normalizeSearch(
+            [
+              item.nombreCompleto,
+              item.documento,
+              item.tipo
+            ]
+              .filter(Boolean)
+              .join(" ")
+          ).includes(
+            query
           );
         }
       )
       .slice(
         0,
-        100
+        150
       );
 
-  if (!filtrados.length) {
-    contenedor.innerHTML = `
-      <div style="padding:15px">
+  if (!rows.length) {
+    container.innerHTML = `
+      <div class="empty-box">
         No se encontraron pasajeros.
       </div>
     `;
@@ -666,8 +1009,8 @@ function renderListaGrupal(
     return;
   }
 
-  contenedor.innerHTML =
-    filtrados
+  container.innerHTML =
+    rows
       .map(
         (
           item
@@ -675,7 +1018,7 @@ function renderListaGrupal(
           <button
             class="passenger-row"
             type="button"
-            data-inscripcion-id="${escAtributo(
+            data-inscription-id="${escAttribute(
               item.inscripcionId
             )}"
           >
@@ -690,8 +1033,11 @@ function renderListaGrupal(
               <span>
                 ${esc(
                   [
-                    item.rut || "",
-                    item.tipo || ""
+                    item.documento,
+                    item.tipo,
+                    item.fichaCompleta
+                      ? "Ficha completa"
+                      : "Ficha pendiente"
                   ]
                     .filter(Boolean)
                     .join(" · ")
@@ -708,201 +1054,458 @@ function renderListaGrupal(
       .join("");
 }
 
-async function cargarPasajeroGrupal(
-  inscripcionId
+async function cargarPasajeroGrupo(
+  inscriptionId
 ) {
-  if (!inscripcionId) {
+  if (!inscriptionId) {
     return;
   }
 
-  setLectorEstado(
+  setState(
+    "lectorEstado",
     "Cargando ficha del pasajero..."
   );
 
   try {
     const response =
-      await llamarApi(
+      await callApiSession(
         "consultarPasajeroGrupo",
         {
-          inscripcionId
+          inscripcionId:
+            inscriptionId
         }
       );
-
-    renderPasajeroIndividual(
-      response.pasajero,
-      response.grupo
-    );
 
     $("resultadoTipo")
       .textContent =
       "Pasajero del grupo";
 
-    setLectorEstado(
+    $("resultadoCodigo")
+      .textContent =
+      state.lastGroupResponse
+        ?.codigo ||
+      "GRUPO";
+
+    $("btnVolverNomina")
+      .classList
+      .remove("hidden");
+
+    $("resultadoContenido")
+      .innerHTML =
+      buildPassengerHtml(
+        response.pasajero ||
+        {},
+        response.grupo ||
+        state.activeGroup ||
+        {}
+      );
+
+    showResult();
+
+    setState(
+      "lectorEstado",
       "Ficha cargada correctamente.",
       false,
       true
     );
   } catch (error) {
-    setLectorEstado(
+    setState(
+      "lectorEstado",
       error.message ||
-      "No se pudo cargar el pasajero.",
+      "No fue posible cargar la ficha.",
       true
     );
   }
 }
 
-function crearCabeceraPasajero(
-  pasajero = {},
-  grupo = {}
+function buildPassengerHtml(
+  passenger,
+  group
 ) {
+  const identity =
+    passenger.identificacion ||
+    {};
+
+  const contact =
+    passenger.contactoPrincipal ||
+    {};
+
+  const secondaryContact =
+    passenger.contactoSecundario ||
+    {};
+
+  const emergency =
+    passenger.emergencia ||
+    {};
+
+  const secondaryEmergency =
+    passenger.emergenciaSecundaria ||
+    {};
+
+  const health =
+    passenger.salud ||
+    {};
+
+  const alerts =
+    Array.isArray(
+      passenger.alertasMedicas
+    )
+      ? passenger.alertasMedicas
+      : [];
+
+  const statusClass =
+    passenger.anulado
+      ? "danger"
+      : passenger.fichaCompleta
+        ? "ok"
+        : "warn";
+
   return `
-    <div class="result-header">
-      <h3 class="result-name">
+    <div class="person-header">
+      <h3>
         ${esc(
-          pasajero.nombreCompleto ||
+          identity.nombreCompleto ||
+          passenger.nombreCompleto ||
           "Pasajero"
         )}
       </h3>
 
-      <p class="result-subtitle">
+      <p>
         ${esc(
           [
-            pasajero.tipo || "",
-            grupo.nombre ||
-            grupo.colegio ||
-            "",
-            grupo.destino || ""
+            passenger.tipo,
+            group.nombre ||
+            group.colegio,
+            group.destino
           ]
             .filter(Boolean)
             .join(" · ")
         )}
       </p>
-    </div>
-  `;
-}
 
-function crearDatosBasicos(
-  pasajero = {}
-) {
-  const datos = [
-    [
-      "RUT",
-      pasajero.rut
-    ],
-    [
-      "Correo",
-      pasajero.correo
-    ],
-    [
-      "Teléfono",
-      pasajero.telefono
-    ],
-    [
-      "Ficha médica",
-      pasajero.fichaCompleta
-        ? "Completa"
-        : "Pendiente"
-    ],
-    [
-      "Contacto de emergencia",
-      pasajero.contactoEmergencia
-    ],
-    [
-      "Teléfono de emergencia",
-      pasajero.telefonoEmergencia
-    ]
-  ];
+      <div class="status-row">
+        <span class="status-pill ${statusClass}">
+          ${
+            passenger.anulado
+              ? "Anulado / no viaja"
+              : passenger.fichaCompleta
+                ? "Ficha médica completa"
+                : "Ficha médica pendiente"
+          }
+        </span>
 
-  return `
-    <div class="data-grid">
-      ${datos
-        .filter(
-          (
-            [
-              _,
-              valor
-            ]
-          ) =>
-            valor !== undefined &&
-            valor !== null &&
-            valor !== ""
-        )
-        .map(
-          (
-            [
-              label,
-              value
-            ]
-          ) => `
-            <div class="data-card">
-              <span>
-                ${esc(label)}
+        ${
+          alerts.length
+            ? `
+              <span class="status-pill danger">
+                ${alerts.length} alerta(s)
               </span>
-
-              <strong>
-                ${esc(value)}
-              </strong>
-            </div>
-          `
-        )
-        .join("")}
+            `
+            : `
+              <span class="status-pill ok">
+                Sin alertas detectadas
+              </span>
+            `
+        }
+      </div>
     </div>
+
+    ${
+      alerts.length
+        ? `
+          <div class="alerts-box">
+            <h4>
+              Alertas médicas
+            </h4>
+
+            <ul>
+              ${alerts
+                .map(
+                  (
+                    alert
+                  ) => `
+                    <li>
+                      ${esc(alert)}
+                    </li>
+                  `
+                )
+                .join("")}
+            </ul>
+          </div>
+        `
+        : ""
+    }
+
+    ${buildSection(
+      "Identificación",
+      [
+        [
+          "Documento",
+          identity.documento ||
+          passenger.documento
+        ],
+        [
+          "Fecha de nacimiento",
+          identity.fechaNacimiento
+        ],
+        [
+          "Edad",
+          identity.edad
+        ],
+        [
+          "Género",
+          identity.genero
+        ],
+        [
+          "Nacionalidad",
+          identity.nacionalidad
+        ],
+        [
+          "Tipo de viajante",
+          passenger.tipoViajante
+        ]
+      ]
+    )}
+
+    ${buildSection(
+      "Contacto principal",
+      [
+        [
+          "Nombre",
+          contact.nombre
+        ],
+        [
+          "Relación",
+          contact.relacion
+        ],
+        [
+          "Teléfono",
+          contact.telefono
+        ],
+        [
+          "Correo",
+          contact.correo
+        ]
+      ]
+    )}
+
+    ${buildSection(
+      "Contacto secundario",
+      [
+        [
+          "Nombre",
+          secondaryContact.nombre
+        ],
+        [
+          "Relación",
+          secondaryContact.relacion
+        ],
+        [
+          "Teléfono",
+          secondaryContact.telefono
+        ],
+        [
+          "Correo",
+          secondaryContact.correo
+        ]
+      ]
+    )}
+
+    ${buildSection(
+      "Contacto de emergencia",
+      [
+        [
+          "Nombre",
+          emergency.nombre
+        ],
+        [
+          "Relación",
+          emergency.relacion
+        ],
+        [
+          "Teléfono",
+          emergency.telefono
+        ],
+        [
+          "Correo",
+          emergency.correo
+        ]
+      ]
+    )}
+
+    ${buildSection(
+      "Emergencia secundaria",
+      [
+        [
+          "Nombre",
+          secondaryEmergency.nombre
+        ],
+        [
+          "Relación",
+          secondaryEmergency.relacion
+        ],
+        [
+          "Teléfono",
+          secondaryEmergency.telefono
+        ]
+      ]
+    )}
+
+    ${buildMedicalSection(
+      health
+    )}
   `;
 }
 
-function crearSeccionMedica(
-  pasajero = {}
+function buildMedicalSection(
+  health
 ) {
-  const datos = [
+  const rows = [
     [
-      "Alergias",
-      pasajero.alergias
+      "Grupo sanguíneo",
+      health.grupoSanguineo
+    ],
+    [
+      "Discapacidad",
+      health.discapacidad
+    ],
+    [
+      "Ayudas técnicas",
+      health.ayudasTecnicas
+    ],
+    [
+      "Apoyos de autonomía",
+      health.apoyosAutonomia
+    ],
+    [
+      "Neurodivergencia",
+      health.neurodivergencia
+    ],
+    [
+      "Factores de sobrecarga",
+      health.neuroFactores
+    ],
+    [
+      "Estrategias de regulación",
+      health.neuroEstrategias
+    ],
+    [
+      "Apoyos neurodivergencia",
+      health.neuroApoyos
+    ],
+    [
+      "Salud mental",
+      health.saludMental
+    ],
+    [
+      "Enfermedad de base",
+      health.enfermedadBase
+    ],
+    [
+      "Salud general",
+      health.saludGeneral
+    ],
+    [
+      "Cirugías previas",
+      health.cirugiasPrevias
+    ],
+    [
+      "Emergencias médicas",
+      health.emergenciaMedica
     ],
     [
       "Medicamentos",
-      pasajero.medicamentos
+      health.medicamentos
     ],
     [
-      "Dieta o alimentación",
-      pasajero.dieta
+      "Medicamentos prohibidos",
+      health.medicamentosProhibidos
     ],
     [
-      "Previsión de salud",
-      pasajero.previsionSalud
+      "Alergias",
+      health.alergias
     ],
     [
-      "Observaciones médicas",
-      pasajero.observacionesMedicas
+      "Alergias alimentarias",
+      health.alergiasAlimentarias
+    ],
+    [
+      "Dieta principal",
+      health.dietaPrincipal
+    ],
+    [
+      "Restricciones alimentarias",
+      health.dietaRestricciones
+    ],
+    [
+      "Dieta especial",
+      health.dieta
+    ],
+    [
+      "Otros antecedentes",
+      health.otrosAntecedentes
     ]
-  ]
-    .filter(
+  ];
+
+  return buildSection(
+    "Ficha médica",
+    rows,
+    {
+      medical:
+        true,
+
+      note:
+        "Información confidencial para uso operativo durante el viaje."
+    }
+  );
+}
+
+function buildSection(
+  title,
+  rows,
+  options = {}
+) {
+  const visible =
+    rows.filter(
       (
         [
           _,
-          valor
+          value
         ]
       ) =>
-        valor !== undefined &&
-        valor !== null &&
-        String(valor).trim() !== ""
+        value !== undefined &&
+        value !== null &&
+        String(
+          value
+        ).trim() !== ""
     );
 
-  if (!datos.length) {
+  if (!visible.length) {
     return "";
   }
 
   return `
-    <section class="medical-section">
+    <section class="info-section ${
+      options.medical
+        ? "medical"
+        : ""
+    }">
       <h3>
-        Información médica
+        ${esc(title)}
       </h3>
 
-      <p class="medical-warning">
-        Información de uso operativo. Tratar de manera confidencial.
-      </p>
+      ${
+        options.note
+          ? `
+            <p class="section-note">
+              ${esc(options.note)}
+            </p>
+          `
+          : ""
+      }
 
       <div class="data-grid">
-        ${datos
+        ${visible
           .map(
             (
               [
@@ -927,11 +1530,101 @@ function crearSeccionMedica(
   `;
 }
 
-async function llamarApiSinSesion(
-  accion,
-  datos
+function showResult() {
+  $("resultadoPanel")
+    .classList
+    .remove("hidden");
+
+  $("resultadoPanel")
+    .scrollIntoView({
+      behavior:
+        "smooth",
+      block:
+        "start"
+    });
+}
+
+function toggleManual() {
+  const panel =
+    $("manualPanel");
+
+  const hidden =
+    panel.classList
+      .toggle("hidden");
+
+  $("btnToggleManual")
+    .textContent =
+    hidden
+      ? "Probar escribiendo el código"
+      : "Ocultar prueba manual";
+}
+
+function comprobarNfc() {
+  const box =
+    $("compatibilidadNfc");
+
+  if (
+    "NDEFReader" in window
+  ) {
+    box.textContent =
+      "Web NFC disponible. Usa Chrome en Android, mantén NFC activado y acerca la pulsera a la parte posterior del teléfono.";
+
+    return;
+  }
+
+  box.textContent =
+    "Web NFC no está disponible aquí. Usa Chrome en Android o prueba escribiendo el código manualmente.";
+}
+
+function updateReadButton() {
+  $("btnLeerPulsera")
+    .disabled =
+    state.reading;
+
+  $("btnLeerPulsera")
+    .textContent =
+    state.reading
+      ? "ACERCA LA PULSERA..."
+      : "LEER PULSERA NFC";
+}
+
+function extractTextCode(
+  message
 ) {
-  validarApiConfigurada();
+  for (
+    const record
+    of message.records ||
+    []
+  ) {
+    if (
+      record.recordType !==
+      "text"
+    ) {
+      continue;
+    }
+
+    try {
+      return sanitizeCode(
+        new TextDecoder(
+          record.encoding ||
+          "utf-8"
+        ).decode(
+          record.data
+        )
+      );
+    } catch {
+      return "";
+    }
+  }
+
+  return "";
+}
+
+async function callApiPublic(
+  accion,
+  payload
+) {
+  validateApiUrl();
 
   const response =
     await fetch(
@@ -948,21 +1641,21 @@ async function llamarApiSinSesion(
         body:
           JSON.stringify({
             accion,
-            ...datos
+            ...payload
           })
       }
     );
 
-  return procesarRespuesta(
+  return parseApiResponse(
     response
   );
 }
 
-async function llamarApi(
+async function callApiSession(
   accion,
-  datos
+  payload
 ) {
-  validarApiConfigurada();
+  validateApiUrl();
 
   const response =
     await fetch(
@@ -979,25 +1672,28 @@ async function llamarApi(
         body:
           JSON.stringify({
             accion,
+
             sessionToken:
               state.sessionToken,
-            ...datos
+
+            ...payload
           })
       }
     );
 
   if (
-    response.status === 401
+    response.status ===
+    401
   ) {
-    limpiarSesionLocal();
+    limpiarSesion();
   }
 
-  return procesarRespuesta(
+  return parseApiResponse(
     response
   );
 }
 
-async function procesarRespuesta(
+async function parseApiResponse(
   response
 ) {
   let payload = {};
@@ -1022,7 +1718,7 @@ async function procesarRespuesta(
   return payload;
 }
 
-function validarApiConfigurada() {
+function validateApiUrl() {
   if (
     !PORTAL_CONFIG.apiUrl ||
     PORTAL_CONFIG.apiUrl.includes(
@@ -1035,184 +1731,77 @@ function validarApiConfigurada() {
   }
 }
 
-function extraerCodigoNdef(
-  message
-) {
-  for (
-    const record
-    of message.records ||
-    []
-  ) {
-    if (
-      record.recordType !==
-      "text"
-    ) {
-      continue;
-    }
-
-    try {
-      return sanitizarCodigo(
-        new TextDecoder(
-          record.encoding ||
-          "utf-8"
-        ).decode(
-          record.data
-        )
-      );
-    } catch {
-      return "";
-    }
-  }
-
-  return "";
-}
-
-function comprobarCompatibilidadNfc() {
-  const box =
-    $("compatibilidadNfc");
-
-  if (
-    "NDEFReader" in window
-  ) {
-    box.textContent =
-      "Web NFC disponible. Usa Chrome en Android, NFC activado y acerca la pulsera a la parte posterior del teléfono.";
-
-    return;
-  }
-
-  box.textContent =
-    "Web NFC no está disponible en este navegador. Usa Chrome en Android o prueba ingresando el código manualmente.";
-}
-
-function toggleManual() {
-  const panel =
-    $("manualPanel");
-
-  const oculta =
-    panel.classList
-      .toggle("hidden");
-
-  $("btnMostrarManual")
-    .textContent =
-    oculta
-      ? "Probar escribiendo un código"
-      : "Ocultar prueba manual";
-}
-
-function bloquearIngreso(
-  bloqueado
-) {
-  $("btnIngresarGrupo")
-    .disabled =
-    bloqueado;
-
-  $("numeroNegocio")
-    .disabled =
-    bloqueado;
-}
-
-function actualizarBotonLectura() {
-  $("btnLeerPulsera")
-    .disabled =
-    state.leyendo;
-
-  $("btnLeerPulsera")
-    .textContent =
-    state.leyendo
-      ? "ACERCA LA PULSERA..."
-      : "LEER PULSERA NFC";
-}
-
-function limpiarSesionLocal() {
+function limpiarSesion() {
   sessionStorage.removeItem(
-    PORTAL_CONFIG.sessionStorageKey
+    PORTAL_CONFIG.sessionTokenKey
   );
 
   sessionStorage.removeItem(
-    PORTAL_CONFIG.negocioStorageKey
+    PORTAL_CONFIG.selectedGroupKey
   );
 
   state.sessionToken =
     "";
-
-  state.numeroNegocio =
-    "";
 }
 
-function setAccesoEstado(
-  mensaje,
+function setState(
+  id,
+  message,
   error = false,
   ok = false
 ) {
-  setEstado(
-    $("accesoEstado"),
-    mensaje,
-    error,
-    ok
-  );
-}
+  const element =
+    $(id);
 
-function setLectorEstado(
-  mensaje,
-  error = false,
-  ok = false
-) {
-  setEstado(
-    $("lectorEstado"),
-    mensaje,
-    error,
-    ok
-  );
-}
-
-function setEstado(
-  elemento,
-  mensaje,
-  error,
-  ok
-) {
-  if (!elemento) {
+  if (!element) {
     return;
   }
 
-  elemento.textContent =
-    mensaje;
+  element.textContent =
+    message;
 
-  elemento.classList
+  element.classList
     .toggle(
       "error",
       error
     );
 
-  elemento.classList
+  element.classList
     .toggle(
       "ok",
       ok
     );
 }
 
-function sanitizarNegocio(
-  valor = ""
+function setDisabled(
+  id,
+  disabled
 ) {
-  return String(
-    valor
-  )
-    .trim()
-    .replace(
-      /[^0-9A-Za-z_-]/g,
-      ""
-    )
-    .slice(
-      0,
-      30
-    );
+  const element =
+    $(id);
+
+  if (element) {
+    element.disabled =
+      disabled;
+  }
 }
 
-function sanitizarCodigo(
-  valor = ""
+function normalizarNumeroNegocio(
+  value = ""
 ) {
   return String(
-    valor
+    value
+  ).replace(
+    /\D/g,
+    ""
+  );
+}
+
+function sanitizeCode(
+  value = ""
+) {
+  return String(
+    value
   )
     .normalize("NFD")
     .replace(
@@ -1227,15 +1816,15 @@ function sanitizarCodigo(
     )
     .slice(
       0,
-      80
+      100
     );
 }
 
-function normalizarBusqueda(
-  valor = ""
+function normalizeSearch(
+  value = ""
 ) {
   return String(
-    valor
+    value
   )
     .normalize("NFD")
     .replace(
@@ -1246,7 +1835,7 @@ function normalizarBusqueda(
     .trim();
 }
 
-function traducirErrorNfc(
+function translateNfcError(
   error
 ) {
   if (
@@ -1260,7 +1849,7 @@ function traducirErrorNfc(
     error?.name ===
     "NotSupportedError"
   ) {
-    return "El dispositivo o la pulsera no son compatibles con Web NFC.";
+    return "El teléfono, el navegador o la pulsera no son compatibles con Web NFC.";
   }
 
   if (
@@ -1271,14 +1860,14 @@ function traducirErrorNfc(
   }
 
   return error?.message ||
-    "No se pudo iniciar la lectura NFC.";
+    "No fue posible iniciar la lectura NFC.";
 }
 
 function esc(
-  valor = ""
+  value = ""
 ) {
   return String(
-    valor
+    value
   )
     .replaceAll(
       "&",
@@ -1302,10 +1891,10 @@ function esc(
     );
 }
 
-function escAtributo(
-  valor = ""
+function escAttribute(
+  value = ""
 ) {
   return esc(
-    valor
+    value
   );
 }
