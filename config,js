@@ -1,0 +1,19 @@
+/*
+  CONFIGURACIÓN DEL PORTAL
+
+  Después de desplegar la Cloud Function, reemplaza el texto
+  PEGAR_URL_CLOUD_FUNCTION_AQUI por la URL real.
+
+  Ejemplo:
+  https://southamerica-west1-sist-op-rt.cloudfunctions.net/consultarPulseraPublica
+*/
+
+export const PORTAL_CONFIG = Object.freeze({
+  apiUrl: "PEGAR_URL_CLOUD_FUNCTION_AQUI",
+
+  sessionStorageKey:
+    "raitrai_pulseras_session_v1",
+
+  negocioStorageKey:
+    "raitrai_pulseras_negocio_v1"
+});
