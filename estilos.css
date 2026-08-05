@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+
   font-family:
     Inter,
     ui-sans-serif,
@@ -9,7 +10,7 @@
     "Segoe UI",
     sans-serif;
 
-  background: #f0edf3;
+  background: #efebf2;
   color: #2b1940;
 }
 
@@ -17,14 +18,20 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
+  min-height: 100%;
   margin: 0;
+
   background:
     radial-gradient(
-      circle at top,
+      circle at 50% -10%,
       #ffffff 0,
-      #f4f0f6 36%,
-      #ece7f0 100%
+      #f5f1f7 35%,
+      #ebe5ef 100%
     );
 }
 
@@ -37,21 +44,22 @@ button {
   touch-action: manipulation;
 }
 
-.reader-page {
+.portal-page {
   min-height: 100dvh;
-  padding: 14px;
+  padding: 12px;
 }
 
-.reader-shell {
-  width: min(680px, 100%);
+.portal-shell {
+  width: min(720px, 100%);
   margin: 0 auto;
 }
 
 .brand-card,
-.reader-card {
-  border: 1px solid #d9d1df;
+.portal-card {
+  border: 1px solid #d9d0df;
   border-radius: 22px;
-  background: rgba(255, 255, 255, .96);
+  background: rgba(255, 255, 255, .97);
+
   box-shadow:
     0 14px 38px
     rgba(43, 25, 64, .08);
@@ -61,26 +69,28 @@ button {
   display: flex;
   gap: 14px;
   align-items: center;
-  padding: 18px;
+  padding: 17px;
 }
 
-.brand-mark {
+.brand-logo {
   display: grid;
-  flex: 0 0 54px;
-  width: 54px;
-  height: 54px;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
   place-items: center;
-  border-radius: 17px;
+
+  border-radius: 18px;
   background: #4a2570;
   color: #fff;
-  font-size: 20px;
+
+  font-size: 21px;
   font-weight: 1000;
 }
 
 .brand-card h1 {
   margin: 0;
   color: #2b1940;
-  font-size: clamp(21px, 6vw, 29px);
+  font-size: clamp(21px, 6vw, 30px);
   line-height: 1.1;
 }
 
@@ -90,28 +100,28 @@ button {
   font-size: 13px;
 }
 
-.reader-card {
+.portal-card {
   margin-top: 13px;
-  padding: 20px;
+  padding: 19px;
 }
 
-.section-kicker,
-.result-type {
+.section-step {
   color: #7b6d85;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 950;
-  letter-spacing: .08em;
+  letter-spacing: .09em;
   text-transform: uppercase;
 }
 
-.reader-card h2 {
+.portal-card h2 {
   margin: 5px 0 0;
   color: #2b1940;
   font-size: 23px;
+  line-height: 1.2;
 }
 
 .section-copy {
-  margin: 7px 0 18px;
+  margin: 7px 0 17px;
   color: #716678;
   font-size: 14px;
   line-height: 1.45;
@@ -126,52 +136,62 @@ button {
   text-transform: uppercase;
 }
 
-.reader-input {
+.portal-input {
   width: 100%;
   min-height: 54px;
-  border: 1px solid #cfc5d7;
+  border: 1px solid #cec3d6;
   border-radius: 13px;
   padding: 0 14px;
+
   background: #fff;
   color: #2b1940;
-  font-size: 19px;
   outline: none;
+
+  font-size: 18px;
 }
 
-.reader-input:focus {
-  border-color: #6d458c;
+.portal-input:focus {
+  border-color: #6c458b;
+
   box-shadow:
     0 0 0 4px
     rgba(74, 37, 112, .12);
 }
 
-.reader-button {
+.code-input {
+  font-weight: 900;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.portal-button {
   width: 100%;
   min-height: 52px;
   margin-top: 12px;
   border: 0;
   border-radius: 13px;
   padding: 0 16px;
+
   color: #fff;
   font-weight: 950;
   cursor: pointer;
 }
 
-.reader-button.primary {
+.portal-button.primary {
   background: #4a2570;
 }
 
-.reader-button.secondary {
+.portal-button.secondary {
   background: #6b6178;
 }
 
-.reader-button.scan {
-  min-height: 78px;
+.portal-button.scan {
+  min-height: 82px;
   background: #166534;
-  font-size: 20px;
+  font-size: 21px;
 }
 
-.reader-button.compact {
+.portal-button.compact {
   width: auto;
   min-height: 40px;
   margin: 0;
@@ -179,62 +199,122 @@ button {
   font-size: 12px;
 }
 
-.reader-button:disabled {
-  opacity: .48;
+.portal-button:disabled {
+  opacity: .46;
   cursor: not-allowed;
 }
 
-.reader-state {
-  min-height: 24px;
-  margin-top: 13px;
+.portal-state {
+  min-height: 23px;
+  margin-top: 12px;
   color: #706579;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 850;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-.reader-state.ok {
+.portal-state.ok {
   color: #166534;
 }
 
-.reader-state.error {
+.portal-state.error {
   color: #991b1b;
 }
 
-.group-head {
+.groups-list {
+  max-height: 480px;
+  margin-top: 14px;
+  overflow: auto;
+  border: 1px solid #e1dae6;
+  border-radius: 14px;
+}
+
+.group-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-bottom: 1px solid #eee9f1;
+
+  background: #fff;
+  color: #2b1940;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-result:last-child {
+  border-bottom: 0;
+}
+
+.group-result:hover,
+.group-result:focus {
+  background: #f7f2fa;
+}
+
+.group-result strong,
+.group-result span {
+  display: block;
+}
+
+.group-result strong {
+  font-size: 15px;
+}
+
+.group-result span {
+  margin-top: 4px;
+  color: #786d82;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.group-result em {
+  color: #4a2570;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.selected-group,
+.result-top {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
 }
 
-.group-head p {
+.selected-group p {
   margin: 5px 0 0;
   color: #746a7d;
   font-size: 13px;
+  line-height: 1.4;
 }
 
-.reader-actions {
-  margin-top: 16px;
+.separator {
+  height: 1px;
+  margin: 17px 0;
+  background: #ebe5ef;
 }
 
-.manual-box {
-  margin-top: 14px;
-  padding: 13px;
-  border: 1px solid #e2dbe7;
-  border-radius: 14px;
-  background: #faf8fc;
-}
-
-.reader-link-button {
-  width: 100%;
-  border: 0;
-  padding: 4px;
-  background: transparent;
-  color: #4a2570;
+.reader-progress {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 15px;
+  color: #166534;
+  font-size: 12px;
   font-weight: 900;
-  text-decoration: underline;
-  cursor: pointer;
+}
+
+.reader-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, .13);
 }
 
 .compatibility-box {
@@ -248,55 +328,140 @@ button {
   line-height: 1.4;
 }
 
+.manual-box {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #e2dbe7;
+  border-radius: 14px;
+  background: #faf8fc;
+}
+
+.text-button {
+  width: 100%;
+  border: 0;
+  padding: 4px;
+  background: transparent;
+  color: #4a2570;
+  font-weight: 900;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .result-code {
-  margin: 8px 0 18px;
+  margin-top: 5px;
   color: #2b1940;
-  font-size: clamp(28px, 10vw, 50px);
+  font-size: clamp(23px, 8vw, 43px);
   font-weight: 1000;
   line-height: 1.05;
-  text-align: center;
   overflow-wrap: anywhere;
 }
 
-.result-header {
+.person-header {
+  margin-top: 15px;
   padding: 15px;
   border-radius: 16px;
   background: #f5f1f8;
   text-align: center;
 }
 
-.result-name {
+.person-header h3 {
   margin: 0;
   color: #2b1940;
-  font-size: 25px;
+  font-size: clamp(21px, 6vw, 27px);
 }
 
-.result-subtitle {
+.person-header p {
   margin: 5px 0 0;
   color: #706579;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.status-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.status-pill {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+
+  background: #ece7f0;
+  color: #62566d;
+
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.status-pill.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pill.warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pill.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.info-section {
+  margin-top: 15px;
+  padding: 14px;
+  border: 1px solid #e3dce8;
+  border-radius: 15px;
+  background: #fff;
+}
+
+.info-section.medical {
+  border-color: #ead9b3;
+  background: #fffaf0;
+}
+
+.info-section h3 {
+  margin: 0;
+  color: #2b1940;
+  font-size: 17px;
+}
+
+.info-section.medical h3 {
+  color: #503c1d;
+}
+
+.section-note {
+  margin: 5px 0 0;
+  color: #765c2d;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .data-grid {
   display: grid;
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
-  margin-top: 13px;
+  margin-top: 11px;
 }
 
 .data-card {
   min-width: 0;
-  padding: 12px;
-  border: 1px solid #e3dce8;
-  border-radius: 13px;
-  background: #fff;
+  padding: 11px;
+  border: 1px solid #e5dee9;
+  border-radius: 12px;
+  background: #faf9fb;
 }
 
 .data-card span {
   display: block;
   color: #7b6f84;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 950;
   text-transform: uppercase;
 }
@@ -311,33 +476,32 @@ button {
   white-space: pre-wrap;
 }
 
-.medical-section {
-  margin-top: 15px;
-  padding: 14px;
-  border: 1px solid #ead9b3;
-  border-radius: 15px;
-  background: #fffaf0;
+.alerts-box {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 13px;
+  background: #fff0f0;
+  color: #991b1b;
 }
 
-.medical-section h3 {
+.alerts-box h4 {
   margin: 0;
-  color: #503c1d;
-  font-size: 17px;
+  font-size: 14px;
 }
 
-.medical-warning {
-  margin: 6px 0 0;
-  color: #765c2d;
-  font-size: 12px;
-  line-height: 1.4;
+.alerts-box ul {
+  margin: 7px 0 0;
+  padding-left: 19px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .passenger-search {
-  margin-top: 14px;
+  margin-top: 15px;
 }
 
 .passenger-list {
-  max-height: 430px;
+  max-height: 500px;
   margin-top: 10px;
   overflow: auto;
   border: 1px solid #e0d8e5;
@@ -346,15 +510,15 @@ button {
 
 .passenger-row {
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+
   width: 100%;
   padding: 13px;
   border: 0;
   border-bottom: 1px solid #eee9f1;
+
   background: #fff;
   color: #2b1940;
   text-align: left;
@@ -380,13 +544,22 @@ button {
   color: #4a2570;
   font-size: 12px;
   font-style: normal;
-  font-weight: 900;
+  font-weight: 950;
 }
 
-.reader-footer {
-  padding: 18px 8px 25px;
+.empty-box {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: 13px;
+  background: #f5f1f8;
+  color: #706579;
+  text-align: center;
+}
+
+.portal-footer {
+  padding: 18px 8px 26px;
   color: #766b7e;
-  font-size: 11px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -394,16 +567,21 @@ button {
   display: none !important;
 }
 
-@media (max-width: 540px) {
-  .reader-page {
-    padding: 10px;
+@media (max-width: 560px) {
+  .portal-page {
+    padding: 9px;
   }
 
-  .reader-card {
-    padding: 17px;
+  .portal-card {
+    padding: 16px;
   }
 
   .data-grid {
     grid-template-columns: 1fr;
+  }
+
+  .selected-group,
+  .result-top {
+    align-items: stretch;
   }
 }
