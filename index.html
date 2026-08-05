@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+  />
+
+  <meta
+    name="theme-color"
+    content="#2b1940"
+  />
+
+  <title>
+    Pulseras NFC | Rai Trai
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="estilos.css"
+  />
+</head>
+
+<body>
+  <main class="reader-page">
+    <div class="reader-shell">
+      <header class="brand-card">
+        <div class="brand-mark">
+          RT
+        </div>
+
+        <div>
+          <h1>
+            Lector de Pulseras NFC
+          </h1>
+
+          <p>
+            Portal de información para viajes Rai Trai
+          </p>
+        </div>
+      </header>
+
+      <section
+        id="accesoPanel"
+        class="reader-card"
+      >
+        <div class="section-kicker">
+          Acceso al grupo
+        </div>
+
+        <h2>
+          Ingresa el número de negocio
+        </h2>
+
+        <p class="section-copy">
+          Este número funciona como clave de acceso al grupo.
+        </p>
+
+        <label
+          class="field-label"
+          for="numeroNegocio"
+        >
+          Número de negocio
+        </label>
+
+        <input
+          id="numeroNegocio"
+          class="reader-input"
+          type="password"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="Ejemplo: 10751"
+        />
+
+        <button
+          id="btnIngresarGrupo"
+          class="reader-button primary"
+          type="button"
+        >
+          Ingresar al grupo
+        </button>
+
+        <div
+          id="accesoEstado"
+          class="reader-state"
+        >
+          Ingresa el número de negocio para comenzar.
+        </div>
+      </section>
+
+      <section
+        id="grupoPanel"
+        class="reader-card hidden"
+      >
+        <div class="group-head">
+          <div>
+            <div class="section-kicker">
+              Grupo autorizado
+            </div>
+
+            <h2 id="grupoTitulo">
+              Grupo
+            </h2>
+
+            <p id="grupoDetalle">
+              —
+            </p>
+          </div>
+
+          <button
+            id="btnCambiarGrupo"
+            class="reader-button compact secondary"
+            type="button"
+          >
+            Cambiar
+          </button>
+        </div>
+
+        <div class="reader-actions">
+          <button
+            id="btnLeerPulsera"
+            class="reader-button scan"
+            type="button"
+          >
+            LEER PULSERA NFC
+          </button>
+        </div>
+
+        <div class="manual-box">
+          <button
+            id="btnMostrarManual"
+            class="reader-link-button"
+            type="button"
+          >
+            Probar escribiendo un código
+          </button>
+
+          <div
+            id="manualPanel"
+            class="hidden"
+          >
+            <label
+              class="field-label"
+              for="codigoManual"
+            >
+              Código de la pulsera
+            </label>
+
+            <input
+              id="codigoManual"
+              class="reader-input"
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="Ejemplo: 10751-001-JP"
+            />
+
+            <button
+              id="btnBuscarManual"
+              class="reader-button secondary"
+              type="button"
+            >
+              Buscar código
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="lectorEstado"
+          class="reader-state"
+        >
+          Presiona “Leer pulsera NFC” y acerca la pulsera al teléfono.
+        </div>
+
+        <div
+          id="compatibilidadNfc"
+          class="compatibility-box"
+        >
+          Comprobando compatibilidad NFC...
+        </div>
+      </section>
+
+      <section
+        id="resultadoPanel"
+        class="reader-card hidden"
+      >
+        <div
+          id="resultadoTipo"
+          class="result-type"
+        >
+          Pulsera
+        </div>
+
+        <div
+          id="resultadoCodigo"
+          class="result-code"
+        >
+          —
+        </div>
+
+        <div
+          id="resultadoContenido"
+        ></div>
+      </section>
+
+      <footer class="reader-footer">
+        Rai Trai · Información de uso operativo
+      </footer>
+    </div>
+  </main>
+
+  <script
+    type="module"
+    src="lector-pulseras.js"
+  ></script>
+</body>
+</html>
