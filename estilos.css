@@ -1,0 +1,409 @@
+:root {
+  color-scheme: light;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  background: #f0edf3;
+  color: #2b1940;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at top,
+      #ffffff 0,
+      #f4f0f6 36%,
+      #ece7f0 100%
+    );
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.reader-page {
+  min-height: 100dvh;
+  padding: 14px;
+}
+
+.reader-shell {
+  width: min(680px, 100%);
+  margin: 0 auto;
+}
+
+.brand-card,
+.reader-card {
+  border: 1px solid #d9d1df;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow:
+    0 14px 38px
+    rgba(43, 25, 64, .08);
+}
+
+.brand-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 18px;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: 17px;
+  background: #4a2570;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 1000;
+}
+
+.brand-card h1 {
+  margin: 0;
+  color: #2b1940;
+  font-size: clamp(21px, 6vw, 29px);
+  line-height: 1.1;
+}
+
+.brand-card p {
+  margin: 5px 0 0;
+  color: #746a7d;
+  font-size: 13px;
+}
+
+.reader-card {
+  margin-top: 13px;
+  padding: 20px;
+}
+
+.section-kicker,
+.result-type {
+  color: #7b6d85;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.reader-card h2 {
+  margin: 5px 0 0;
+  color: #2b1940;
+  font-size: 23px;
+}
+
+.section-copy {
+  margin: 7px 0 18px;
+  color: #716678;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.field-label {
+  display: block;
+  margin: 14px 0 6px;
+  color: #62566d;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.reader-input {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid #cfc5d7;
+  border-radius: 13px;
+  padding: 0 14px;
+  background: #fff;
+  color: #2b1940;
+  font-size: 19px;
+  outline: none;
+}
+
+.reader-input:focus {
+  border-color: #6d458c;
+  box-shadow:
+    0 0 0 4px
+    rgba(74, 37, 112, .12);
+}
+
+.reader-button {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 13px;
+  padding: 0 16px;
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.reader-button.primary {
+  background: #4a2570;
+}
+
+.reader-button.secondary {
+  background: #6b6178;
+}
+
+.reader-button.scan {
+  min-height: 78px;
+  background: #166534;
+  font-size: 20px;
+}
+
+.reader-button.compact {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 13px;
+  font-size: 12px;
+}
+
+.reader-button:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
+.reader-state {
+  min-height: 24px;
+  margin-top: 13px;
+  color: #706579;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.4;
+}
+
+.reader-state.ok {
+  color: #166534;
+}
+
+.reader-state.error {
+  color: #991b1b;
+}
+
+.group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.group-head p {
+  margin: 5px 0 0;
+  color: #746a7d;
+  font-size: 13px;
+}
+
+.reader-actions {
+  margin-top: 16px;
+}
+
+.manual-box {
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid #e2dbe7;
+  border-radius: 14px;
+  background: #faf8fc;
+}
+
+.reader-link-button {
+  width: 100%;
+  border: 0;
+  padding: 4px;
+  background: transparent;
+  color: #4a2570;
+  font-weight: 900;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.compatibility-box {
+  margin-top: 13px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #fff7d6;
+  color: #735c00;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.result-code {
+  margin: 8px 0 18px;
+  color: #2b1940;
+  font-size: clamp(28px, 10vw, 50px);
+  font-weight: 1000;
+  line-height: 1.05;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.result-header {
+  padding: 15px;
+  border-radius: 16px;
+  background: #f5f1f8;
+  text-align: center;
+}
+
+.result-name {
+  margin: 0;
+  color: #2b1940;
+  font-size: 25px;
+}
+
+.result-subtitle {
+  margin: 5px 0 0;
+  color: #706579;
+  font-size: 14px;
+}
+
+.data-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.data-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e3dce8;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.data-card span {
+  display: block;
+  color: #7b6f84;
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.data-card strong {
+  display: block;
+  margin-top: 5px;
+  color: #2b1940;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.medical-section {
+  margin-top: 15px;
+  padding: 14px;
+  border: 1px solid #ead9b3;
+  border-radius: 15px;
+  background: #fffaf0;
+}
+
+.medical-section h3 {
+  margin: 0;
+  color: #503c1d;
+  font-size: 17px;
+}
+
+.medical-warning {
+  margin: 6px 0 0;
+  color: #765c2d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.passenger-search {
+  margin-top: 14px;
+}
+
+.passenger-list {
+  max-height: 430px;
+  margin-top: 10px;
+  overflow: auto;
+  border: 1px solid #e0d8e5;
+  border-radius: 14px;
+}
+
+.passenger-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-bottom: 1px solid #eee9f1;
+  background: #fff;
+  color: #2b1940;
+  text-align: left;
+  cursor: pointer;
+}
+
+.passenger-row:last-child {
+  border-bottom: 0;
+}
+
+.passenger-row strong,
+.passenger-row span {
+  display: block;
+}
+
+.passenger-row span {
+  margin-top: 3px;
+  color: #786d82;
+  font-size: 12px;
+}
+
+.passenger-row em {
+  color: #4a2570;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.reader-footer {
+  padding: 18px 8px 25px;
+  color: #766b7e;
+  font-size: 11px;
+  text-align: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 540px) {
+  .reader-page {
+    padding: 10px;
+  }
+
+  .reader-card {
+    padding: 17px;
+  }
+
+  .data-grid {
+    grid-template-columns: 1fr;
+  }
+}
