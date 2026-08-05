@@ -13,9 +13,7 @@
     content="#2b1940"
   />
 
-  <title>
-    Pulseras NFC | Rai Trai
-  </title>
+  <title>Comunicaciones Rai Trai</title>
 
   <link
     rel="stylesheet"
@@ -24,10 +22,10 @@
 </head>
 
 <body>
-  <main class="reader-page">
-    <div class="reader-shell">
+  <main class="portal-page">
+    <div class="portal-shell">
       <header class="brand-card">
-        <div class="brand-mark">
+        <div class="brand-logo">
           RT
         </div>
 
@@ -37,17 +35,97 @@
           </h1>
 
           <p>
-            Portal de información para viajes Rai Trai
+            Información de pasajeros y grupos Rai Trai
           </p>
         </div>
       </header>
 
+      <!-- PASO 1: BUSCAR Y SELECCIONAR GRUPO -->
       <section
-        id="accesoPanel"
-        class="reader-card"
+        id="buscarGrupoPanel"
+        class="portal-card"
       >
-        <div class="section-kicker">
-          Acceso al grupo
+        <div class="section-step">
+          Paso 1
+        </div>
+
+        <h2>
+          Buscar grupo
+        </h2>
+
+        <p class="section-copy">
+          Busca por colegio, curso, destino, año o identificador del grupo.
+        </p>
+
+        <label
+          class="field-label"
+          for="buscarGrupoInput"
+        >
+          Grupo
+        </label>
+
+        <input
+          id="buscarGrupoInput"
+          class="portal-input"
+          type="search"
+          autocomplete="off"
+          placeholder="Ejemplo: colegio, Brasil, 2026..."
+        />
+
+        <button
+          id="btnBuscarGrupo"
+          class="portal-button primary"
+          type="button"
+        >
+          Buscar grupo
+        </button>
+
+        <div
+          id="buscarGrupoEstado"
+          class="portal-state"
+        >
+          Escribe al menos dos caracteres para buscar.
+        </div>
+
+        <div
+          id="resultadosGrupos"
+          class="groups-list hidden"
+        ></div>
+      </section>
+
+      <!-- PASO 2: VALIDAR NÚMERO DE NEGOCIO -->
+      <section
+        id="validarClavePanel"
+        class="portal-card hidden"
+      >
+        <div class="selected-group">
+          <div>
+            <div class="section-step">
+              Grupo seleccionado
+            </div>
+
+            <h2 id="grupoSeleccionadoTitulo">
+              —
+            </h2>
+
+            <p id="grupoSeleccionadoDetalle">
+              —
+            </p>
+          </div>
+
+          <button
+            id="btnCambiarSeleccion"
+            class="portal-button compact secondary"
+            type="button"
+          >
+            Cambiar
+          </button>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="section-step">
+          Paso 2
         </div>
 
         <h2>
@@ -55,123 +133,89 @@
         </h2>
 
         <p class="section-copy">
-          Este número funciona como clave de acceso al grupo.
+          El número de negocio funciona como clave del grupo.
+          Si es compuesto, puedes escribirlo con “//”, “/”, “-” o solo sus dígitos.
         </p>
 
         <label
           class="field-label"
-          for="numeroNegocio"
+          for="numeroNegocioInput"
         >
           Número de negocio
         </label>
 
         <input
-          id="numeroNegocio"
-          class="reader-input"
+          id="numeroNegocioInput"
+          class="portal-input"
           type="password"
           inputmode="numeric"
           autocomplete="off"
-          placeholder="Ejemplo: 10751"
+          placeholder="Ejemplo: 10661"
         />
 
         <button
-          id="btnIngresarGrupo"
-          class="reader-button primary"
+          id="btnValidarClave"
+          class="portal-button primary"
           type="button"
         >
           Ingresar al grupo
         </button>
 
         <div
-          id="accesoEstado"
-          class="reader-state"
+          id="validarClaveEstado"
+          class="portal-state"
         >
-          Ingresa el número de negocio para comenzar.
+          Ingresa el número de negocio del grupo seleccionado.
         </div>
       </section>
 
+      <!-- PASO 3: LEER PULSERA -->
       <section
-        id="grupoPanel"
-        class="reader-card hidden"
+        id="lectorPanel"
+        class="portal-card hidden"
       >
-        <div class="group-head">
+        <div class="selected-group">
           <div>
-            <div class="section-kicker">
-              Grupo autorizado
+            <div class="section-step">
+              Acceso habilitado
             </div>
 
-            <h2 id="grupoTitulo">
-              Grupo
+            <h2 id="grupoActivoTitulo">
+              —
             </h2>
 
-            <p id="grupoDetalle">
+            <p id="grupoActivoDetalle">
               —
             </p>
           </div>
 
           <button
-            id="btnCambiarGrupo"
-            class="reader-button compact secondary"
+            id="btnCerrarGrupo"
+            class="portal-button compact secondary"
             type="button"
           >
-            Cambiar
+            Cambiar grupo
           </button>
         </div>
 
-        <div class="reader-actions">
-          <button
-            id="btnLeerPulsera"
-            class="reader-button scan"
-            type="button"
-          >
-            LEER PULSERA NFC
-          </button>
+        <div class="reader-progress">
+          <span class="reader-dot"></span>
+          Sesión activa
         </div>
 
-        <div class="manual-box">
-          <button
-            id="btnMostrarManual"
-            class="reader-link-button"
-            type="button"
-          >
-            Probar escribiendo un código
-          </button>
-
-          <div
-            id="manualPanel"
-            class="hidden"
-          >
-            <label
-              class="field-label"
-              for="codigoManual"
-            >
-              Código de la pulsera
-            </label>
-
-            <input
-              id="codigoManual"
-              class="reader-input"
-              type="text"
-              autocomplete="off"
-              autocapitalize="characters"
-              placeholder="Ejemplo: 10751-001-JP"
-            />
-
-            <button
-              id="btnBuscarManual"
-              class="reader-button secondary"
-              type="button"
-            >
-              Buscar código
-            </button>
-          </div>
-        </div>
+        <button
+          id="btnLeerPulsera"
+          class="portal-button scan"
+          type="button"
+        >
+          LEER PULSERA NFC
+        </button>
 
         <div
           id="lectorEstado"
-          class="reader-state"
+          class="portal-state"
         >
-          Presiona “Leer pulsera NFC” y acerca la pulsera al teléfono.
+          Presiona el botón y acerca la pulsera a la parte posterior del teléfono.
         </div>
 
         <div
@@ -180,33 +224,83 @@
         >
           Comprobando compatibilidad NFC...
         </div>
+
+        <div class="manual-box">
+          <button
+            id="btnToggleManual"
+            class="text-button"
+            type="button"
+          >
+            Probar escribiendo el código
+          </button>
+
+          <div
+            id="manualPanel"
+            class="hidden"
+          >
+            <label
+              class="field-label"
+              for="codigoManualInput"
+            >
+              Código escrito en la pulsera
+            </label>
+
+            <input
+              id="codigoManualInput"
+              class="portal-input code-input"
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="Ejemplo: 10661-001-JP"
+            />
+
+            <button
+              id="btnBuscarCodigoManual"
+              class="portal-button secondary"
+              type="button"
+            >
+              Buscar código
+            </button>
+          </div>
+        </div>
       </section>
 
+      <!-- RESULTADO -->
       <section
         id="resultadoPanel"
-        class="reader-card hidden"
+        class="portal-card hidden"
       >
-        <div
-          id="resultadoTipo"
-          class="result-type"
-        >
-          Pulsera
+        <div class="result-top">
+          <div>
+            <div
+              id="resultadoTipo"
+              class="section-step"
+            >
+              Resultado
+            </div>
+
+            <div
+              id="resultadoCodigo"
+              class="result-code"
+            >
+              —
+            </div>
+          </div>
+
+          <button
+            id="btnVolverNomina"
+            class="portal-button compact secondary hidden"
+            type="button"
+          >
+            Volver a nómina
+          </button>
         </div>
 
-        <div
-          id="resultadoCodigo"
-          class="result-code"
-        >
-          —
-        </div>
-
-        <div
-          id="resultadoContenido"
-        ></div>
+        <div id="resultadoContenido"></div>
       </section>
 
-      <footer class="reader-footer">
-        Rai Trai · Información de uso operativo
+      <footer class="portal-footer">
+        Rai Trai · Información operativa y confidencial
       </footer>
     </div>
   </main>
