@@ -273,6 +273,8 @@ async function iniciarSesion() {
 
     await solicitarUbicacionInicial();
 
+    await restaurarModo();
+
     await procesarNfcPendiente();
   } catch (error) {
     setState(
@@ -328,14 +330,49 @@ function abrirLector() {
     ?.classList
     .add("hidden");
 
-  resetModo();
-
   setState(
     "lectorEstado",
     "Acceso habilitado. Selecciona una acción.",
     false,
     true
   );
+}
+
+async function restaurarModo() {
+  const modoGuardado =
+    localStorage.getItem(
+      PORTAL_CONFIG.modeKey
+    ) ||
+    "";
+
+  if (
+    modoGuardado ===
+    "asistencia"
+  ) {
+    state.modo =
+      "asistencia";
+
+    activarModoAsistencia();
+
+    await restaurarAsistenciaActiva();
+
+    return;
+  }
+
+  if (
+    modoGuardado ===
+    "ficha_medica"
+  ) {
+    state.modo =
+      "ficha_medica";
+
+    activarModoFicha();
+
+    return;
+  }
+
+  state.modo =
+    "";
 }
 
 async function restaurarSesion() {
@@ -347,7 +384,6 @@ async function restaurarSesion() {
 
   if (!token) {
     mostrarLogin();
-
     return;
   }
 
@@ -367,6 +403,8 @@ async function restaurarSesion() {
     abrirLector();
 
     await recuperarUbicacionSilenciosa();
+
+    await restaurarModo();
 
     await procesarNfcPendiente();
   } catch {
@@ -766,32 +804,26 @@ async function procesarNfcPendiente() {
     return;
   }
 
-  const pendingMode =
-    sessionStorage.getItem(
-      PORTAL_CONFIG.pendingModeKey
-    );
-
-  if (
-    pendingMode
-  ) {
-    state.modo =
-      pendingMode;
-  }
+  state.pendingNfcCode =
+    "";
 
   sessionStorage.removeItem(
     PORTAL_CONFIG.pendingNfcKey
   );
 
-  sessionStorage.removeItem(
-    PORTAL_CONFIG.pendingModeKey
-  );
-
-  state.pendingNfcCode =
-    "";
+  if (
+    !state.modo
+  ) {
+    state.modo =
+      localStorage.getItem(
+        PORTAL_CONFIG.modeKey
+      ) ||
+      "";
+  }
 
   if (
     state.modo ===
-    "asistencia" &&
+      "asistencia" &&
     state.asistencia
   ) {
     await registrarLecturaAsistencia(
@@ -801,8 +833,28 @@ async function procesarNfcPendiente() {
     return;
   }
 
+  if (
+    state.modo ===
+    "asistencia"
+  ) {
+    activarModoAsistencia();
+
+    setState(
+      "lectorEstado",
+      "La pulsera fue detectada, pero primero debes iniciar o recuperar una lista de asistencia.",
+      true
+    );
+
+    return;
+  }
+
   state.modo =
     "ficha_medica";
+
+  localStorage.setItem(
+    PORTAL_CONFIG.modeKey,
+    state.modo
+  );
 
   activarModoFicha();
 
@@ -1040,7 +1092,12 @@ async function cargarPasajeroGrupo(
         "consultarPasajeroGrupo",
         {
           inscripcionId:
-            inscriptionId
+            inscriptionId,
+    
+          codigo:
+            state.lastGroupResponse
+              ?.codigo ||
+            ""
         }
       );
 
@@ -1784,6 +1841,14 @@ function limpiarSesion() {
     PORTAL_CONFIG.pendingModeKey
   );
 
+  localStorage.removeItem(
+    PORTAL_CONFIG.modeKey
+  );
+  
+  localStorage.removeItem(
+    PORTAL_CONFIG.activeAttendanceKey
+  );
+
   state.sessionToken =
     "";
 
@@ -1943,6 +2008,11 @@ function activarModoFicha() {
   state.modo =
     "ficha_medica";
 
+  localStorage.setItem(
+    PORTAL_CONFIG.modeKey,
+    state.modo
+  );
+
   $("asistenciaPanel")
     ?.classList
     .add("hidden");
@@ -1969,6 +2039,11 @@ function activarModoAsistencia() {
   state.modo =
     "asistencia";
 
+  localStorage.setItem(
+    PORTAL_CONFIG.modeKey,
+    state.modo
+  );
+
   $("modoLecturaPanel")
     ?.classList
     .add("hidden");
@@ -1979,13 +2054,19 @@ function activarModoAsistencia() {
 
   setState(
     "lectorEstado",
-    "Crea una nueva lista de asistencia."
+    state.asistencia
+      ? "Lista activa. Continúa leyendo pulseras."
+      : "Crea una nueva lista de asistencia."
   );
 }
 
 function resetModo() {
   state.modo =
     "";
+
+  localStorage.removeItem(
+    PORTAL_CONFIG.modeKey
+  );
 
   $("modoLecturaPanel")
     ?.classList
@@ -1994,6 +2075,11 @@ function resetModo() {
   $("asistenciaPanel")
     ?.classList
     .add("hidden");
+
+  setState(
+    "lectorEstado",
+    "Selecciona qué deseas hacer."
+  );
 }
 
 async function obtenerUbicacionLectura() {
@@ -2221,6 +2307,10 @@ async function crearNuevaAsistencia() {
 
     state.asistencia =
       response.asistencia;
+    localStorage.setItem(
+      PORTAL_CONFIG.activeAttendanceKey,
+      state.asistencia.id
+    );
 
     state.asistenciaPasajeros =
       Array.isArray(
@@ -2263,6 +2353,92 @@ async function crearNuevaAsistencia() {
     setDisabled(
       "btnNuevaAsistencia",
       false
+    );
+  }
+}
+
+async function restaurarAsistenciaActiva() {
+  const asistenciaId =
+    localStorage.getItem(
+      PORTAL_CONFIG.activeAttendanceKey
+    ) ||
+    "";
+
+  if (!asistenciaId) {
+    return;
+  }
+
+  try {
+    const response =
+      await callApiSession(
+        "estadoAsistencia",
+        {
+          asistenciaId
+        }
+      );
+
+    if (
+      response.asistencia?.estado !==
+      "ACTIVA"
+    ) {
+      localStorage.removeItem(
+        PORTAL_CONFIG.activeAttendanceKey
+      );
+
+      return;
+    }
+
+    state.asistencia =
+      response.asistencia;
+
+    state.asistenciaPasajeros =
+      Array.isArray(
+        response.pasajeros
+      )
+        ? response.pasajeros
+        : [];
+
+    state.asistenciaLeidos =
+      new Map(
+        (
+          response.leidos ||
+          []
+        ).map(
+          (item) => [
+            item.inscripcionId,
+            item
+          ]
+        )
+      );
+
+    $("asistenciaActiva")
+      ?.classList
+      .remove("hidden");
+
+    $("btnNuevaAsistencia")
+      ?.classList
+      .add("hidden");
+
+    if (
+      $("nombreAsistenciaInput")
+    ) {
+      $("nombreAsistenciaInput").disabled =
+        true;
+
+      $("nombreAsistenciaInput").value =
+        state.asistencia.nombre ||
+        "";
+    }
+
+    renderAsistencia();
+  } catch (error) {
+    console.warn(
+      "[lector-pulseras] restaurar asistencia",
+      error
+    );
+
+    localStorage.removeItem(
+      PORTAL_CONFIG.activeAttendanceKey
     );
   }
 }
@@ -2541,6 +2717,10 @@ async function finalizarAsistencia() {
       ...state.asistencia,
       ...response.asistencia
     };
+
+    localStorage.removeItem(
+      PORTAL_CONFIG.activeAttendanceKey
+    );
 
     setState(
       "lectorEstado",
