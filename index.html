@@ -40,132 +40,74 @@
         </div>
       </header>
 
-      <!-- PASO 1: BUSCAR Y SELECCIONAR GRUPO -->
+      <!-- ACCESO -->
       <section
-        id="buscarGrupoPanel"
+        id="loginPanel"
         class="portal-card"
       >
         <div class="section-step">
-          Paso 1
+          Acceso
         </div>
-
+      
         <h2>
-          Buscar grupo
+          Ingresar
         </h2>
-
+      
         <p class="section-copy">
-          Busca por colegio, curso, destino, año o identificador del grupo.
+          Ingresa el ID del grupo y su número de negocio.
+          El acceso quedará guardado en este dispositivo.
         </p>
-
+      
         <label
           class="field-label"
-          for="buscarGrupoInput"
+          for="idGrupoInput"
         >
-          Grupo
+          ID Grupo
         </label>
-
+      
         <input
-          id="buscarGrupoInput"
+          id="idGrupoInput"
           class="portal-input"
-          type="search"
-          autocomplete="off"
-          placeholder="Ejemplo: colegio, Brasil, 2026..."
+          type="text"
+          inputmode="numeric"
+          autocomplete="username"
+          placeholder="Ejemplo: 10335"
         />
-
-        <button
-          id="btnBuscarGrupo"
-          class="portal-button primary"
-          type="button"
-        >
-          Buscar grupo
-        </button>
-
-        <div
-          id="buscarGrupoEstado"
-          class="portal-state"
-        >
-          Escribe al menos dos caracteres para buscar.
-        </div>
-
-        <div
-          id="resultadosGrupos"
-          class="groups-list hidden"
-        ></div>
-      </section>
-
-      <!-- PASO 2: VALIDAR NÚMERO DE NEGOCIO -->
-      <section
-        id="validarClavePanel"
-        class="portal-card hidden"
-      >
-        <div class="selected-group">
-          <div>
-            <div class="section-step">
-              Grupo seleccionado
-            </div>
-
-            <h2 id="grupoSeleccionadoTitulo">
-              —
-            </h2>
-
-            <p id="grupoSeleccionadoDetalle">
-              —
-            </p>
-          </div>
-
-          <button
-            id="btnCambiarSeleccion"
-            class="portal-button compact secondary"
-            type="button"
-          >
-            Cambiar
-          </button>
-        </div>
-
-        <div class="separator"></div>
-
-        <div class="section-step">
-          Paso 2
-        </div>
-
-        <h2>
-          Ingresa el número de negocio
-        </h2>
-
-        <p class="section-copy">
-          El número de negocio funciona como clave del grupo.
-          Si es compuesto, puedes escribirlo con “//”, “/”, “-” o solo sus dígitos.
-        </p>
-
+      
         <label
           class="field-label"
           for="numeroNegocioInput"
         >
           Número de negocio
         </label>
-
+      
         <input
           id="numeroNegocioInput"
           class="portal-input"
           type="password"
           inputmode="numeric"
-          autocomplete="off"
-          placeholder="Ejemplo: 10661"
+          autocomplete="current-password"
+          placeholder="Ejemplo: 1547"
         />
-
+      
+        <p class="section-copy">
+          Si el grupo tiene negocios compuestos, ingresa todos sus números.
+          Los separadores no importan.
+        </p>
+      
         <button
-          id="btnValidarClave"
+          id="btnIngresar"
           class="portal-button primary"
           type="button"
         >
-          Ingresar al grupo
+          INGRESAR
         </button>
-
+      
         <div
-          id="validarClaveEstado"
+          id="loginEstado"
           class="portal-state"
         >
-          Ingresa el número de negocio del grupo seleccionado.
+          Ingresa tus datos de acceso.
         </div>
       </section>
 
@@ -177,54 +119,171 @@
         <div class="selected-group">
           <div>
             <div class="section-step">
-              Acceso habilitado
+              Sesión activa
             </div>
-
+      
             <h2 id="grupoActivoTitulo">
               —
             </h2>
-
+      
             <p id="grupoActivoDetalle">
               —
             </p>
           </div>
-
+      
           <button
             id="btnCerrarGrupo"
             class="portal-button compact secondary"
             type="button"
           >
-            Cambiar grupo
+            Cerrar sesión
           </button>
         </div>
-
+      
         <div class="reader-progress">
           <span class="reader-dot"></span>
-          Sesión activa
+          Acceso habilitado
         </div>
-
-        <button
-          id="btnLeerPulsera"
-          class="portal-button scan"
-          type="button"
+      
+        <div
+          id="ubicacionEstado"
+          class="compatibility-box"
         >
-          LEER PULSERA NFC
-        </button>
-
+          Ubicación pendiente.
+        </div>
+      
+        <div class="separator"></div>
+      
+        <div class="section-step">
+          Selecciona una acción
+        </div>
+      
+        <div class="reader-actions">
+          <button
+            id="btnModoFicha"
+            class="portal-button scan"
+            type="button"
+          >
+            LEER FICHA MÉDICA
+          </button>
+      
+          <button
+            id="btnModoAsistencia"
+            class="portal-button primary"
+            type="button"
+          >
+            PASAR LISTA
+          </button>
+        </div>
+      
         <div
           id="lectorEstado"
           class="portal-state"
         >
-          Presiona el botón y acerca la pulsera a la parte posterior del teléfono.
+          Selecciona qué deseas hacer.
         </div>
-
+      
         <div
           id="compatibilidadNfc"
           class="compatibility-box"
         >
           Comprobando compatibilidad NFC...
         </div>
-
+      
+        <div
+          id="modoLecturaPanel"
+          class="hidden"
+        >
+          <div class="separator"></div>
+      
+          <div
+            id="modoLecturaTitulo"
+            class="section-step"
+          >
+            —
+          </div>
+      
+          <button
+            id="btnLeerPulsera"
+            class="portal-button scan"
+            type="button"
+          >
+            LEER PULSERA NFC
+          </button>
+      
+          <button
+            id="btnCancelarModo"
+            class="portal-button secondary"
+            type="button"
+          >
+            Volver
+          </button>
+        </div>
+      
+        <div
+          id="asistenciaPanel"
+          class="hidden"
+        >
+          <div class="separator"></div>
+      
+          <h3>
+            Asistencia actual
+          </h3>
+      
+          <label
+            class="field-label"
+            for="nombreAsistenciaInput"
+          >
+            Nombre opcional
+          </label>
+      
+          <input
+            id="nombreAsistenciaInput"
+            class="portal-input"
+            type="text"
+            maxlength="100"
+            autocomplete="off"
+            placeholder="Ejemplo: Salida hotel"
+          />
+      
+          <button
+            id="btnNuevaAsistencia"
+            class="portal-button primary"
+            type="button"
+          >
+            COMENZAR NUEVA LISTA
+          </button>
+      
+          <div
+            id="asistenciaActiva"
+            class="hidden"
+          >
+            <div class="reader-progress">
+              <strong id="asistenciaContador">
+                0 / 0
+              </strong>
+            </div>
+      
+            <div id="asistenciaResumen"></div>
+      
+            <button
+              id="btnLeerAsistencia"
+              class="portal-button scan"
+              type="button"
+            >
+              LEER PULSERA
+            </button>
+      
+            <button
+              id="btnFinalizarAsistencia"
+              class="portal-button secondary"
+              type="button"
+            >
+              FINALIZAR LISTA
+            </button>
+          </div>
+        </div>
+      
         <div class="manual-box">
           <button
             id="btnToggleManual"
@@ -233,7 +292,7 @@
           >
             Probar escribiendo el código
           </button>
-
+      
           <div
             id="manualPanel"
             class="hidden"
@@ -242,24 +301,24 @@
               class="field-label"
               for="codigoManualInput"
             >
-              Código escrito en la pulsera
+              Código
             </label>
-
+      
             <input
               id="codigoManualInput"
               class="portal-input code-input"
               type="text"
               autocomplete="off"
               autocapitalize="characters"
-              placeholder="Ejemplo: 10661-001-JP"
+              placeholder="Ejemplo: 1547-001-JP"
             />
-
+      
             <button
               id="btnBuscarCodigoManual"
               class="portal-button secondary"
               type="button"
             >
-              Buscar código
+              Procesar código
             </button>
           </div>
         </div>
