@@ -6,91 +6,41 @@ const $ = (id) =>
   document.getElementById(id);
 
 const state = {
-  selectedGroup: null,
   sessionToken: "",
   activeGroup: null,
 
-  groupResults: [],
   groupPassengerList: [],
   lastGroupResponse: null,
 
-  reading: false
+  reading: false,
+
+  modo: "",
+
+  pendingNfcCode: "",
+
+  ubicacion: null,
+  ubicacionSolicitada: false,
+
+  asistencia: null,
+  asistenciaPasajeros: [],
+  asistenciaLeidos: new Map()
 };
 
 init();
 
-function init() {
+async function init() {
   bindEvents();
+
   comprobarNfc();
-  restaurarSesion();
+
+  capturarNfcDesdeUrl();
+
+  await restaurarSesion();
+
+  await procesarNfcPendiente();
 }
 
 function bindEvents() {
-  $("btnBuscarGrupo")
-    ?.addEventListener(
-      "click",
-      buscarGrupos
-    );
-
-  $("buscarGrupoInput")
-    ?.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          event.key ===
-          "Enter"
-        ) {
-          buscarGrupos();
-        }
-      }
-    );
-
-  $("resultadosGrupos")
-    ?.addEventListener(
-      "click",
-      (event) => {
-        const button =
-          event.target.closest(
-            "[data-group-index]"
-          );
-
-        if (!button) {
-          return;
-        }
-
-        seleccionarGrupo(
-          Number(
-            button.dataset.groupIndex
-          )
-        );
-      }
-    );
-
-  $("btnCambiarSeleccion")
-    ?.addEventListener(
-      "click",
-      volverABusqueda
-    );
-
-  $("btnValidarClave")
-    ?.addEventListener(
-      "click",
-      validarNumeroNegocio
-    );
-
-  $("numeroNegocioInput")
-    ?.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          event.key ===
-          "Enter"
-        ) {
-          validarNumeroNegocio();
-        }
-      }
-    );
-
   $("btnCerrarGrupo")
     ?.addEventListener(
       "click",
@@ -157,8 +107,7 @@ function bindEvents() {
         }
 
         cargarPasajeroGrupo(
-          passengerButton.dataset
-            .inscriptionId
+          passengerButton.dataset.inscriptionId
         );
       }
     );
@@ -176,259 +125,105 @@ function bindEvents() {
         }
       }
     );
-}
 
-async function buscarGrupos() {
-  const texto =
-    String(
-      $("buscarGrupoInput")
-        ?.value ||
-      ""
-    ).trim();
-
-  if (
-    texto.length < 2
-  ) {
-    setState(
-      "buscarGrupoEstado",
-      "Escribe al menos dos caracteres.",
-      true
+  $("btnIngresar")
+    ?.addEventListener(
+      "click",
+      iniciarSesion
     );
 
-    return;
-  }
-
-  setDisabled(
-    "btnBuscarGrupo",
-    true
-  );
-
-  setState(
-    "buscarGrupoEstado",
-    "Buscando grupos..."
-  );
-
-  try {
-    const response =
-      await callApiPublic(
-        "buscarGrupos",
-        {
-          texto
+  $("idGrupoInput")
+    ?.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key ===
+          "Enter"
+        ) {
+          $("numeroNegocioInput")
+            ?.focus();
         }
-      );
-
-    state.groupResults =
-      Array.isArray(
-        response.grupos
-      )
-        ? response.grupos
-        : [];
-
-    renderGroupResults();
-
-    setState(
-      "buscarGrupoEstado",
-      state.groupResults.length
-        ? `${state.groupResults.length} grupo(s) encontrado(s).`
-        : "No se encontraron grupos.",
-      false,
-      state.groupResults.length > 0
+      }
     );
-  } catch (error) {
-    state.groupResults =
-      [];
-
-    $("resultadosGrupos")
-      .classList
-      .add("hidden");
-
-    setState(
-      "buscarGrupoEstado",
-      error.message ||
-      "No fue posible buscar grupos.",
-      true
-    );
-  } finally {
-    setDisabled(
-      "btnBuscarGrupo",
-      false
-    );
-  }
-}
-
-function renderGroupResults() {
-  const container =
-    $("resultadosGrupos");
-
-  if (
-    !state.groupResults.length
-  ) {
-    container.innerHTML =
-      "";
-
-    container.classList
-      .add("hidden");
-
-    return;
-  }
-
-  container.innerHTML =
-    state.groupResults
-      .map(
-        (
-          group,
-          index
-        ) => `
-          <button
-            class="group-result"
-            type="button"
-            data-group-index="${index}"
-          >
-            <span>
-              <strong>
-                ${esc(
-                  group.nombre ||
-                  group.colegio ||
-                  `Grupo ${group.idGrupo || ""}`
-                )}
-              </strong>
-
-              <span>
-                ${esc(
-                  [
-                    group.colegio,
-                    group.curso,
-                    group.destino,
-                    group.anoViaje
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")
-                )}
-              </span>
-            </span>
-
-            <em>
-              Seleccionar
-            </em>
-          </button>
-        `
-      )
-      .join("");
-
-  container.classList
-    .remove("hidden");
-}
-
-function seleccionarGrupo(
-  index
-) {
-  const group =
-    state.groupResults[
-      index
-    ];
-
-  if (!group) {
-    return;
-  }
-
-  state.selectedGroup =
-    group;
-
-  renderSelectedGroup(
-    group
-  );
-
-  $("buscarGrupoPanel")
-    .classList
-    .add("hidden");
-
-  $("validarClavePanel")
-    .classList
-    .remove("hidden");
 
   $("numeroNegocioInput")
-    .value =
-    "";
-
-  setState(
-    "validarClaveEstado",
-    "Ingresa el número de negocio del grupo seleccionado."
-  );
-
-  window.setTimeout(
-    () =>
-      $("numeroNegocioInput")
-        ?.focus(),
-    80
-  );
-}
-
-function renderSelectedGroup(
-  group
-) {
-  $("grupoSeleccionadoTitulo")
-    .textContent =
-    group.nombre ||
-    group.colegio ||
-    "Grupo seleccionado";
-
-  $("grupoSeleccionadoDetalle")
-    .textContent =
-    [
-      group.colegio,
-      group.curso,
-      group.destino,
-      group.anoViaje
-    ]
-      .filter(Boolean)
-      .join(" · ") ||
-    "—";
-}
-
-function volverABusqueda() {
-  state.selectedGroup =
-    null;
-
-  $("validarClavePanel")
-    .classList
-    .add("hidden");
-
-  $("buscarGrupoPanel")
-    .classList
-    .remove("hidden");
-
-  $("numeroNegocioInput")
-    .value =
-    "";
-}
-
-async function validarNumeroNegocio() {
-  if (
-    !state.selectedGroup
-  ) {
-    setState(
-      "validarClaveEstado",
-      "Primero selecciona un grupo.",
-      true
+    ?.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key ===
+          "Enter"
+        ) {
+          iniciarSesion();
+        }
+      }
     );
 
-    return;
-  }
+  $("btnModoFicha")
+    ?.addEventListener(
+      "click",
+      activarModoFicha
+    );
+
+  $("btnModoAsistencia")
+    ?.addEventListener(
+      "click",
+      activarModoAsistencia
+    );
+
+  $("btnCancelarModo")
+    ?.addEventListener(
+      "click",
+      resetModo
+    );
+
+  $("btnNuevaAsistencia")
+    ?.addEventListener(
+      "click",
+      crearNuevaAsistencia
+    );
+
+  $("btnLeerAsistencia")
+    ?.addEventListener(
+      "click",
+      leerPulseraAsistencia
+    );
+
+  $("btnFinalizarAsistencia")
+    ?.addEventListener(
+      "click",
+      finalizarAsistencia
+    );
+}
+
+async function iniciarSesion() {
+  const idGrupo =
+    String(
+      $("idGrupoInput")?.value ||
+      ""
+    )
+      .trim()
+      .replace(/\D/g, "");
 
   const numeroNegocio =
-    String(
-      $("numeroNegocioInput")
-        ?.value ||
-      ""
-    ).trim();
-
-  if (
     normalizarNumeroNegocio(
-      numeroNegocio
-    ).length < 4
-  ) {
+      $("numeroNegocioInput")?.value ||
+      ""
+    );
+
+  if (!idGrupo) {
     setState(
-      "validarClaveEstado",
+      "loginEstado",
+      "Ingresa el ID del grupo.",
+      true
+    );
+
+    return;
+  }
+
+  if (numeroNegocio.length < 4) {
+    setState(
+      "loginEstado",
       "Ingresa el número de negocio completo.",
       true
     );
@@ -437,24 +232,21 @@ async function validarNumeroNegocio() {
   }
 
   setDisabled(
-    "btnValidarClave",
+    "btnIngresar",
     true
   );
 
   setState(
-    "validarClaveEstado",
-    "Validando número de negocio..."
+    "loginEstado",
+    "Validando acceso..."
   );
 
   try {
     const response =
       await callApiPublic(
-        "iniciarSesion",
+        "iniciarSesionV2",
         {
-          groupDocId:
-            state.selectedGroup
-              .groupDocId,
-
+          idGrupo,
           numeroNegocio
         }
       );
@@ -465,29 +257,33 @@ async function validarNumeroNegocio() {
     state.activeGroup =
       response.grupo;
 
-    sessionStorage.setItem(
+    localStorage.setItem(
       PORTAL_CONFIG.sessionTokenKey,
       state.sessionToken
     );
 
-    sessionStorage.setItem(
-      PORTAL_CONFIG.selectedGroupKey,
+    localStorage.setItem(
+      PORTAL_CONFIG.activeGroupKey,
       JSON.stringify(
         state.activeGroup
       )
     );
 
     abrirLector();
+
+    await solicitarUbicacionInicial();
+
+    await procesarNfcPendiente();
   } catch (error) {
     setState(
-      "validarClaveEstado",
+      "loginEstado",
       error.message ||
-      "El número de negocio no coincide con el grupo.",
+      "ID de grupo o clave incorrectos.",
       true
     );
   } finally {
     setDisabled(
-      "btnValidarClave",
+      "btnIngresar",
       false
     );
   }
@@ -501,12 +297,16 @@ function abrirLector() {
   $("grupoActivoTitulo")
     .textContent =
     group.nombre ||
+    group.aliasGrupo ||
     group.colegio ||
-    "Grupo autorizado";
+    `Grupo ${group.idGrupo || ""}`;
 
   $("grupoActivoDetalle")
     .textContent =
     [
+      group.idGrupo
+        ? `ID ${group.idGrupo}`
+        : "",
       group.colegio,
       group.curso,
       group.destino,
@@ -516,25 +316,23 @@ function abrirLector() {
       .join(" · ") ||
     "Acceso autorizado";
 
-  $("buscarGrupoPanel")
-    .classList
-    .add("hidden");
-
-  $("validarClavePanel")
-    .classList
+  $("loginPanel")
+    ?.classList
     .add("hidden");
 
   $("lectorPanel")
-    .classList
+    ?.classList
     .remove("hidden");
 
   $("resultadoPanel")
-    .classList
+    ?.classList
     .add("hidden");
+
+  resetModo();
 
   setState(
     "lectorEstado",
-    "Acceso habilitado. Presiona “Leer pulsera NFC”.",
+    "Acceso habilitado. Selecciona una acción.",
     false,
     true
   );
@@ -542,12 +340,14 @@ function abrirLector() {
 
 async function restaurarSesion() {
   const token =
-    sessionStorage.getItem(
+    localStorage.getItem(
       PORTAL_CONFIG.sessionTokenKey
     ) ||
     "";
 
   if (!token) {
+    mostrarLogin();
+
     return;
   }
 
@@ -565,19 +365,32 @@ async function restaurarSesion() {
       response.grupo;
 
     abrirLector();
+
+    await recuperarUbicacionSilenciosa();
+
+    await procesarNfcPendiente();
   } catch {
     limpiarSesion();
+    mostrarLogin();
   }
+}
+
+function mostrarLogin() {
+  $("loginPanel")
+    ?.classList
+    .remove("hidden");
+
+  $("lectorPanel")
+    ?.classList
+    .add("hidden");
+
+  $("resultadoPanel")
+    ?.classList
+    .add("hidden");
 }
 
 function cerrarSesionGrupo() {
   limpiarSesion();
-
-  state.selectedGroup =
-    null;
-
-  state.activeGroup =
-    null;
 
   state.groupPassengerList =
     [];
@@ -585,41 +398,62 @@ function cerrarSesionGrupo() {
   state.lastGroupResponse =
     null;
 
+  state.ubicacion =
+    null;
+
   $("lectorPanel")
-    .classList
+    ?.classList
     .add("hidden");
 
   $("resultadoPanel")
-    .classList
+    ?.classList
     .add("hidden");
 
-  $("validarClavePanel")
-    .classList
-    .add("hidden");
-
-  $("buscarGrupoPanel")
-    .classList
+  $("loginPanel")
+    ?.classList
     .remove("hidden");
 
-  $("buscarGrupoInput")
-    .value =
-    "";
+  if (
+    $("idGrupoInput")
+  ) {
+    $("idGrupoInput").value =
+      "";
+  }
 
-  $("numeroNegocioInput")
-    .value =
-    "";
+  if (
+    $("numeroNegocioInput")
+  ) {
+    $("numeroNegocioInput").value =
+      "";
+  }
 
-  $("codigoManualInput")
-    .value =
-    "";
+  if (
+    $("codigoManualInput")
+  ) {
+    $("codigoManualInput").value =
+      "";
+  }
 
-  $("resultadosGrupos")
-    .classList
-    .add("hidden");
+  if (
+    $("nombreAsistenciaInput")
+  ) {
+    $("nombreAsistenciaInput").value =
+      "";
+
+    $("nombreAsistenciaInput").disabled =
+      false;
+  }
 
   setState(
-    "buscarGrupoEstado",
-    "Escribe al menos dos caracteres para buscar."
+    "loginEstado",
+    "Ingresa tus datos de acceso."
+  );
+
+  window.setTimeout(
+    () =>
+      $("idGrupoInput")
+        ?.focus(),
+    100
   );
 }
 
@@ -697,7 +531,7 @@ async function leerPulseraNfc() {
         event
       ) => {
         const codigo =
-          extractTextCode(
+          extractNfcCode(
             event.message
           );
 
@@ -713,9 +547,18 @@ async function leerPulseraNfc() {
 
         controller.abort();
 
-        await consultarCodigo(
-          codigo
-        );
+        if (
+          state.modo ===
+          "asistencia"
+        ) {
+          await registrarLecturaAsistencia(
+            codigo
+          );
+        } else {
+          await consultarCodigo(
+            codigo
+          );
+        }
 
         state.reading =
           false;
@@ -765,6 +608,17 @@ async function buscarCodigoManual() {
     return;
   }
 
+  if (
+    state.modo ===
+    "asistencia"
+  ) {
+    await registrarLecturaAsistencia(
+      codigo
+    );
+
+    return;
+  }
+
   await consultarCodigo(
     codigo
   );
@@ -784,11 +638,19 @@ async function consultarCodigo(
   );
 
   try {
+    const ubicacion =
+      await obtenerUbicacionLectura();
+    
     const response =
       await callApiSession(
         "consultarPulsera",
         {
-          codigo
+          codigo,
+    
+          modo:
+            "ficha_medica",
+    
+          ubicacion
         }
       );
 
@@ -841,6 +703,112 @@ async function consultarCodigo(
       [250, 100, 250]
     );
   }
+}
+
+function capturarNfcDesdeUrl() {
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
+
+  const codigo =
+    sanitizeCode(
+      params.get("nfc") ||
+      ""
+    );
+
+  if (!codigo) {
+    return;
+  }
+
+  state.pendingNfcCode =
+    codigo;
+
+  sessionStorage.setItem(
+    PORTAL_CONFIG.pendingNfcKey,
+    codigo
+  );
+
+  if (
+    state.modo
+  ) {
+    sessionStorage.setItem(
+      PORTAL_CONFIG.pendingModeKey,
+      state.modo
+    );
+  }
+
+  const cleanUrl =
+    `${window.location.origin}${window.location.pathname}`;
+
+  window.history.replaceState(
+    {},
+    document.title,
+    cleanUrl
+  );
+}
+
+async function procesarNfcPendiente() {
+  const codigo =
+    state.pendingNfcCode ||
+    sessionStorage.getItem(
+      PORTAL_CONFIG.pendingNfcKey
+    ) ||
+    "";
+
+  if (!codigo) {
+    return;
+  }
+
+  if (
+    !state.sessionToken
+  ) {
+    return;
+  }
+
+  const pendingMode =
+    sessionStorage.getItem(
+      PORTAL_CONFIG.pendingModeKey
+    );
+
+  if (
+    pendingMode
+  ) {
+    state.modo =
+      pendingMode;
+  }
+
+  sessionStorage.removeItem(
+    PORTAL_CONFIG.pendingNfcKey
+  );
+
+  sessionStorage.removeItem(
+    PORTAL_CONFIG.pendingModeKey
+  );
+
+  state.pendingNfcCode =
+    "";
+
+  if (
+    state.modo ===
+    "asistencia" &&
+    state.asistencia
+  ) {
+    await registrarLecturaAsistencia(
+      codigo
+    );
+
+    return;
+  }
+
+  state.modo =
+    "ficha_medica";
+
+  activarModoFicha();
+
+  await consultarCodigo(
+    codigo
+  );
 }
 
 function renderIndividualResult(
@@ -1563,17 +1531,20 @@ function comprobarNfc() {
   const box =
     $("compatibilidadNfc");
 
+  if (!box) {
+    return;
+  }
+
   if (
     "NDEFReader" in window
   ) {
     box.textContent =
-      "Web NFC disponible. Usa Chrome en Android, mantén NFC activado y acerca la pulsera a la parte posterior del teléfono.";
-
+      "Android compatible: presiona el botón y acerca la pulsera.";
     return;
   }
 
   box.textContent =
-    "Web NFC no está disponible aquí. Usa Chrome en Android o prueba escribiendo el código manualmente.";
+    "iPhone: acerca la pulsera a la parte superior del teléfono y toca la notificación NFC.";
 }
 
 function updateReadButton() {
@@ -1588,7 +1559,7 @@ function updateReadButton() {
       : "LEER PULSERA NFC";
 }
 
-function extractTextCode(
+function extractNfcCode(
   message
 ) {
   for (
@@ -1596,28 +1567,93 @@ function extractTextCode(
     of message.records ||
     []
   ) {
-    if (
-      record.recordType !==
-      "text"
-    ) {
-      continue;
-    }
-
     try {
-      return sanitizeCode(
-        new TextDecoder(
-          record.encoding ||
-          "utf-8"
-        ).decode(
-          record.data
-        )
-      );
+      if (
+        record.recordType ===
+        "text"
+      ) {
+        const text =
+          new TextDecoder(
+            record.encoding ||
+            "utf-8"
+          ).decode(
+            record.data
+          );
+
+        const codigo =
+          extraerCodigoDesdeValor(
+            text
+          );
+
+        if (codigo) {
+          return codigo;
+        }
+      }
+
+      if (
+        record.recordType ===
+        "url" ||
+        record.recordType ===
+        "absolute-url"
+      ) {
+        const url =
+          new TextDecoder()
+            .decode(
+              record.data
+            );
+
+        const codigo =
+          extraerCodigoDesdeValor(
+            url
+          );
+
+        if (codigo) {
+          return codigo;
+        }
+      }
     } catch {
-      return "";
+      // continuar
     }
   }
 
   return "";
+}
+
+function extraerCodigoDesdeValor(
+  value = ""
+) {
+  const raw =
+    String(
+      value ||
+      ""
+    ).trim();
+
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const url =
+      new URL(
+        raw
+      );
+
+    const codigo =
+      url.searchParams
+        .get("nfc");
+
+    if (codigo) {
+      return sanitizeCode(
+        codigo
+      );
+    }
+  } catch {
+    // no era URL
+  }
+
+  return sanitizeCode(
+    raw
+  );
 }
 
 async function callApiPublic(
@@ -1732,16 +1768,263 @@ function validateApiUrl() {
 }
 
 function limpiarSesion() {
-  sessionStorage.removeItem(
+  localStorage.removeItem(
     PORTAL_CONFIG.sessionTokenKey
   );
 
+  localStorage.removeItem(
+    PORTAL_CONFIG.activeGroupKey
+  );
+
   sessionStorage.removeItem(
-    PORTAL_CONFIG.selectedGroupKey
+    PORTAL_CONFIG.pendingNfcKey
+  );
+
+  sessionStorage.removeItem(
+    PORTAL_CONFIG.pendingModeKey
   );
 
   state.sessionToken =
     "";
+
+  state.activeGroup =
+    null;
+
+  state.pendingNfcCode =
+    "";
+
+  state.modo =
+    "";
+
+  state.asistencia =
+    null;
+
+  state.asistenciaPasajeros =
+    [];
+
+  state.asistenciaLeidos =
+    new Map();
+}
+
+async function solicitarUbicacionInicial() {
+  if (
+    !navigator.geolocation
+  ) {
+    actualizarEstadoUbicacion(
+      "Ubicación no disponible en este dispositivo."
+    );
+
+    return;
+  }
+
+  const preference =
+    localStorage.getItem(
+      PORTAL_CONFIG.locationPreferenceKey
+    );
+
+  if (
+    preference ===
+    "denied"
+  ) {
+    actualizarEstadoUbicacion(
+      "Ubicación desactivada. Las lecturas seguirán funcionando."
+    );
+
+    return;
+  }
+
+  await obtenerUbicacion({
+    inicial:
+      true
+  });
+}
+
+async function recuperarUbicacionSilenciosa() {
+  if (
+    !navigator.geolocation
+  ) {
+    return;
+  }
+
+  const preference =
+    localStorage.getItem(
+      PORTAL_CONFIG.locationPreferenceKey
+    );
+
+  if (
+    preference !==
+    "allowed"
+  ) {
+    return;
+  }
+
+  await obtenerUbicacion({
+    inicial:
+      false
+  });
+}
+
+function obtenerUbicacion({
+  inicial = false
+} = {}) {
+  return new Promise(
+    (
+      resolve
+    ) => {
+      navigator.geolocation
+        .getCurrentPosition(
+          (
+            position
+          ) => {
+            state.ubicacion = {
+              lat:
+                position.coords.latitude,
+
+              lng:
+                position.coords.longitude,
+
+              accuracy:
+                position.coords.accuracy,
+
+              timestamp:
+                Date.now()
+            };
+
+            localStorage.setItem(
+              PORTAL_CONFIG.locationPreferenceKey,
+              "allowed"
+            );
+
+            actualizarEstadoUbicacion(
+              `Ubicación habilitada · precisión aproximada ${Math.round(
+                position.coords.accuracy
+              )} m`
+            );
+
+            resolve(
+              state.ubicacion
+            );
+          },
+          () => {
+            state.ubicacion =
+              null;
+
+            if (inicial) {
+              localStorage.setItem(
+                PORTAL_CONFIG.locationPreferenceKey,
+                "denied"
+              );
+            }
+
+            actualizarEstadoUbicacion(
+              "Ubicación no autorizada. Las lecturas seguirán funcionando."
+            );
+
+            resolve(
+              null
+            );
+          },
+          {
+            enableHighAccuracy:
+              true,
+
+            timeout:
+              8000,
+
+            maximumAge:
+              30000
+          }
+        );
+    }
+  );
+}
+
+function activarModoFicha() {
+  state.modo =
+    "ficha_medica";
+
+  $("asistenciaPanel")
+    ?.classList
+    .add("hidden");
+
+  $("modoLecturaPanel")
+    ?.classList
+    .remove("hidden");
+
+  $("modoLecturaTitulo")
+    .textContent =
+    "Ficha médica";
+
+  $("btnLeerPulsera")
+    .textContent =
+    "LEER PULSERA NFC";
+
+  setState(
+    "lectorEstado",
+    "Acerca una pulsera para consultar su ficha médica."
+  );
+}
+
+function activarModoAsistencia() {
+  state.modo =
+    "asistencia";
+
+  $("modoLecturaPanel")
+    ?.classList
+    .add("hidden");
+
+  $("asistenciaPanel")
+    ?.classList
+    .remove("hidden");
+
+  setState(
+    "lectorEstado",
+    "Crea una nueva lista de asistencia."
+  );
+}
+
+function resetModo() {
+  state.modo =
+    "";
+
+  $("modoLecturaPanel")
+    ?.classList
+    .add("hidden");
+
+  $("asistenciaPanel")
+    ?.classList
+    .add("hidden");
+}
+
+async function obtenerUbicacionLectura() {
+  const preference =
+    localStorage.getItem(
+      PORTAL_CONFIG.locationPreferenceKey
+    );
+
+  if (
+    preference !==
+    "allowed"
+  ) {
+    return null;
+  }
+
+  return obtenerUbicacion({
+    inicial:
+      false
+  });
+}
+
+function actualizarEstadoUbicacion(
+  texto
+) {
+  const box =
+    $("ubicacionEstado");
+
+  if (box) {
+    box.textContent =
+      texto;
+  }
 }
 
 function setState(
@@ -1897,4 +2180,407 @@ function escAttribute(
   return esc(
     value
   );
+}
+
+async function crearNuevaAsistencia() {
+  if (
+    !state.sessionToken
+  ) {
+    return;
+  }
+
+  const nombre =
+    String(
+      $("nombreAsistenciaInput")
+        ?.value ||
+      ""
+    ).trim();
+
+  setDisabled(
+    "btnNuevaAsistencia",
+    true
+  );
+
+  setState(
+    "lectorEstado",
+    "Creando lista..."
+  );
+
+  try {
+    const ubicacion =
+      await obtenerUbicacionLectura();
+
+    const response =
+      await callApiSession(
+        "crearAsistencia",
+        {
+          nombre,
+          ubicacion
+        }
+      );
+
+    state.asistencia =
+      response.asistencia;
+
+    state.asistenciaPasajeros =
+      Array.isArray(
+        response.pasajeros
+      )
+        ? response.pasajeros
+        : [];
+
+    state.asistenciaLeidos =
+      new Map();
+
+    $("asistenciaActiva")
+      ?.classList
+      .remove("hidden");
+
+    $("btnNuevaAsistencia")
+      ?.classList
+      .add("hidden");
+
+    $("nombreAsistenciaInput")
+      .disabled =
+      true;
+
+    renderAsistencia();
+
+    setState(
+      "lectorEstado",
+      "Lista iniciada. Comienza a leer pulseras.",
+      false,
+      true
+    );
+  } catch (error) {
+    setState(
+      "lectorEstado",
+      error.message ||
+      "No fue posible crear la lista.",
+      true
+    );
+  } finally {
+    setDisabled(
+      "btnNuevaAsistencia",
+      false
+    );
+  }
+}
+
+async function registrarLecturaAsistencia(
+  codigoRaw
+) {
+  if (
+    !state.asistencia
+  ) {
+    setState(
+      "lectorEstado",
+      "Primero debes comenzar una lista.",
+      true
+    );
+
+    return;
+  }
+
+  const codigo =
+    sanitizeCode(
+      codigoRaw
+    );
+
+  const ubicacion =
+    await obtenerUbicacionLectura();
+
+  try {
+    const response =
+      await callApiSession(
+        "registrarAsistencia",
+        {
+          asistenciaId:
+            state.asistencia.id,
+
+          codigo,
+
+          ubicacion
+        }
+      );
+
+    if (
+      response.otroGrupo ===
+      true
+    ) {
+      setState(
+        "lectorEstado",
+        `Esta pulsera corresponde a otro grupo (${response.grupoPulsera || "otro grupo"}). No fue agregada.`,
+        true
+      );
+
+      navigator.vibrate?.(
+        [250, 100, 250]
+      );
+
+      return;
+    }
+
+    if (
+      response.duplicada ===
+      true
+    ) {
+      setState(
+        "lectorEstado",
+        `${response.nombrePasajero || "Este pasajero"} ya había sido registrado.`,
+        false,
+        true
+      );
+    } else {
+      setState(
+        "lectorEstado",
+        `${response.nombrePasajero || "Pasajero"} registrado correctamente.`,
+        false,
+        true
+      );
+    }
+
+    if (
+      response.inscripcionId
+    ) {
+      state.asistenciaLeidos
+        .set(
+          response.inscripcionId,
+          response
+        );
+    }
+
+    if (
+      response.asistencia
+    ) {
+      state.asistencia = {
+        ...state.asistencia,
+        ...response.asistencia
+      };
+    }
+
+    renderAsistencia();
+
+    navigator.vibrate?.(
+      [100, 60, 100]
+    );
+  } catch (error) {
+    setState(
+      "lectorEstado",
+      error.message ||
+      "No fue posible registrar la pulsera.",
+      true
+    );
+  }
+}
+
+function renderAsistencia() {
+  const total =
+    Number(
+      state.asistencia?.totalEsperado ||
+      state.asistenciaPasajeros.length ||
+      0
+    );
+
+  const leidos =
+    Number(
+      state.asistencia?.totalLeidos ||
+      state.asistenciaLeidos.size ||
+      0
+    );
+
+  $("asistenciaContador")
+    .textContent =
+    `${leidos} / ${total}`;
+
+  const idsLeidos =
+    new Set(
+      [
+        ...state.asistenciaLeidos
+          .keys()
+      ]
+    );
+
+  const pendientes =
+    state.asistenciaPasajeros
+      .filter(
+        (
+          pasajero
+        ) =>
+          !idsLeidos.has(
+            pasajero.inscripcionId
+          )
+      );
+
+  const leidosItems =
+    state.asistenciaPasajeros
+      .filter(
+        (
+          pasajero
+        ) =>
+          idsLeidos.has(
+            pasajero.inscripcionId
+          )
+      );
+
+  $("asistenciaResumen")
+    .innerHTML = `
+      <div class="info-section">
+        <h3>
+          Leídos (${leidosItems.length})
+        </h3>
+
+        ${
+          leidosItems.length
+            ? `
+              <div class="passenger-list">
+                ${leidosItems
+                  .map(
+                    (
+                      item
+                    ) => `
+                      <div class="passenger-row">
+                        <span>
+                          <strong>
+                            ✓ ${esc(
+                              item.nombreCompleto ||
+                              "Sin nombre"
+                            )}
+                          </strong>
+
+                          <span>
+                            ${esc(
+                              item.documento ||
+                              ""
+                            )}
+                          </span>
+                        </span>
+                      </div>
+                    `
+                  )
+                  .join("")}
+              </div>
+            `
+            : `
+              <div class="empty-box">
+                Todavía no hay pasajeros leídos.
+              </div>
+            `
+        }
+      </div>
+
+      <div class="info-section">
+        <h3>
+          Pendientes (${pendientes.length})
+        </h3>
+
+        ${
+          pendientes.length
+            ? `
+              <div class="passenger-list">
+                ${pendientes
+                  .map(
+                    (
+                      item
+                    ) => `
+                      <div class="passenger-row">
+                        <span>
+                          <strong>
+                            ${esc(
+                              item.nombreCompleto ||
+                              "Sin nombre"
+                            )}
+                          </strong>
+
+                          <span>
+                            ${esc(
+                              item.documento ||
+                              ""
+                            )}
+                          </span>
+                        </span>
+                      </div>
+                    `
+                  )
+                  .join("")}
+              </div>
+            `
+            : `
+              <div class="empty-box">
+                Todos los pasajeros fueron registrados.
+              </div>
+            `
+        }
+      </div>
+    `;
+}
+
+async function finalizarAsistencia() {
+  if (
+    !state.asistencia?.id
+  ) {
+    return;
+  }
+
+  try {
+    const ubicacion =
+      await obtenerUbicacionLectura();
+
+    const response =
+      await callApiSession(
+        "finalizarAsistencia",
+        {
+          asistenciaId:
+            state.asistencia.id,
+
+          ubicacion
+        }
+      );
+
+    state.asistencia = {
+      ...state.asistencia,
+      ...response.asistencia
+    };
+
+    setState(
+      "lectorEstado",
+      "Lista finalizada correctamente.",
+      false,
+      true
+    );
+
+    $("btnLeerAsistencia")
+      .disabled =
+      true;
+
+    $("btnFinalizarAsistencia")
+      .disabled =
+      true;
+  } catch (error) {
+    setState(
+      "lectorEstado",
+      error.message ||
+      "No fue posible finalizar la lista.",
+      true
+    );
+  }
+}
+
+async function leerPulseraAsistencia() {
+  if (
+    !state.asistencia
+  ) {
+    setState(
+      "lectorEstado",
+      "Primero comienza una nueva lista.",
+      true
+    );
+
+    return;
+  }
+
+  state.modo =
+    "asistencia";
+
+  await leerPulseraNfc();
 }
