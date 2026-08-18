@@ -2,9 +2,21 @@ export const PORTAL_CONFIG = Object.freeze({
   apiUrl:
     "https://consultarpulserapublica-r3llfis4wa-tl.a.run.app",
 
-  sessionTokenKey:
-    "raitrai_nfc_session_token_v2",
+  portalUrl:
+    "https://comunicaciones-raitrai.vercel.app/",
 
-  selectedGroupKey:
-    "raitrai_nfc_selected_group_v2"
+  sessionTokenKey:
+    "raitrai_nfc_session_token_v3",
+
+  activeGroupKey:
+    "raitrai_nfc_active_group_v3",
+
+  pendingNfcKey:
+    "raitrai_nfc_pending_code_v3",
+
+  pendingModeKey:
+    "raitrai_nfc_pending_mode_v3",
+
+  locationPreferenceKey:
+    "raitrai_nfc_location_preference_v1"
 });
