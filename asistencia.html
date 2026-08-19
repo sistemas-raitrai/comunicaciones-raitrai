@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+  />
+
+  <meta
+    name="theme-color"
+    content="#4b2676"
+  />
+
+  <title>
+    Pasar Lista · Rai Trai
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="estilos.css"
+  />
+</head>
+
+<body>
+  <main class="portal-page">
+    <div class="portal-shell">
+
+      <header class="brand-card">
+        <div class="brand-logo">
+          RT
+        </div>
+
+        <div>
+          <h1>
+            Pasar Lista
+          </h1>
+
+          <p>
+            Control de asistencia mediante pulseras NFC
+          </p>
+        </div>
+      </header>
+
+      <section
+        id="sinSesionPanel"
+        class="portal-card hidden"
+      >
+        <div class="section-step">
+          Acceso
+        </div>
+
+        <h2>
+          Sesión no disponible
+        </h2>
+
+        <p class="section-copy">
+          Debes ingresar primero al lector de pulseras.
+        </p>
+
+        <button
+          id="btnIrLogin"
+          class="portal-button primary"
+          type="button"
+        >
+          VOLVER AL INICIO
+        </button>
+      </section>
+
+      <section
+        id="asistenciaPanel"
+        class="portal-card hidden"
+      >
+        <div class="selected-group">
+          <div>
+            <div class="section-step">
+              Asistencia del grupo
+            </div>
+
+            <h2 id="grupoTitulo">
+              —
+            </h2>
+
+            <p id="grupoDetalle">
+              —
+            </p>
+          </div>
+
+          <button
+            id="btnVolverLector"
+            class="portal-button compact secondary"
+            type="button"
+          >
+            Volver
+          </button>
+        </div>
+
+        <div class="reader-progress">
+          <span class="reader-dot"></span>
+          Sesión de asistencia activa
+        </div>
+
+        <div
+          id="ubicacionEstado"
+          class="compatibility-box"
+        >
+          Ubicación pendiente.
+        </div>
+
+        <div class="separator"></div>
+
+        <div
+          id="contadorBox"
+          class="person-header"
+        >
+          <div class="section-step">
+            Estado de la lista
+          </div>
+
+          <h3 id="contadorPrincipal">
+            Preparando...
+          </h3>
+
+          <p id="contadorDetalle">
+            Cargando pasajeros del grupo.
+          </p>
+        </div>
+
+        <div
+          id="estadoLectura"
+          class="portal-state"
+        >
+          Preparando asistencia...
+        </div>
+
+        <div
+          id="compatibilidadNfc"
+          class="compatibility-box"
+        >
+          Comprobando compatibilidad NFC...
+        </div>
+
+        <button
+          id="btnIniciarLectura"
+          class="portal-button scan"
+          type="button"
+        >
+          INICIAR LECTURA DE PULSERAS
+        </button>
+
+        <button
+          id="btnDetenerLectura"
+          class="portal-button secondary hidden"
+          type="button"
+        >
+          DETENER LECTURA
+        </button>
+
+        <div class="manual-box">
+          <button
+            id="btnToggleManual"
+            class="text-button"
+            type="button"
+          >
+            Ingresar código manualmente
+          </button>
+
+          <div
+            id="manualPanel"
+            class="hidden"
+          >
+            <label
+              class="field-label"
+              for="codigoManualInput"
+            >
+              Código
+            </label>
+
+            <input
+              id="codigoManualInput"
+              class="portal-input code-input"
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="Ejemplo: 1547-001-JP"
+            />
+
+            <button
+              id="btnProcesarManual"
+              class="portal-button secondary"
+              type="button"
+            >
+              REGISTRAR
+            </button>
+          </div>
+        </div>
+
+        <div class="separator"></div>
+
+        <div id="resumenAsistencia"></div>
+
+        <div class="separator"></div>
+
+        <button
+          id="btnFinalizar"
+          class="portal-button secondary"
+          type="button"
+        >
+          FINALIZAR LISTA
+        </button>
+      </section>
+
+      <section
+        id="finalizadaPanel"
+        class="portal-card hidden"
+      >
+        <div class="section-step">
+          Lista finalizada
+        </div>
+
+        <h2>
+          Asistencia guardada
+        </h2>
+
+        <div id="resultadoFinal"></div>
+
+        <button
+          id="btnNuevaLista"
+          class="portal-button primary"
+          type="button"
+        >
+          INICIAR NUEVA LISTA
+        </button>
+
+        <button
+          id="btnVolverFinal"
+          class="portal-button secondary"
+          type="button"
+        >
+          VOLVER AL LECTOR
+        </button>
+      </section>
+
+      <footer class="portal-footer">
+        Rai Trai · Control operativo de asistencia
+      </footer>
+
+    </div>
+  </main>
+
+  <script
+    type="module"
+    src="asistencia.js"
+  ></script>
+</body>
+</html>
