@@ -36,8 +36,6 @@ async function init() {
   capturarNfcDesdeUrl();
 
   await restaurarSesion();
-
-  await procesarNfcPendiente();
 }
 
 function bindEvents() {
@@ -2497,6 +2495,44 @@ async function registrarLecturaAsistencia(
       return;
     }
 
+    /*
+      MODALIDAD GRUPAL
+      Solo registramos que la pulsera grupal fue leída.
+      No inventamos pasajeros presentes.
+    */
+    if (
+      response.modalidad ===
+      "grupal"
+    ) {
+      state.asistencia = {
+        ...state.asistencia,
+        ...response.asistencia,
+
+        grupoRegistrado:
+          true
+      };
+
+      renderAsistencia();
+
+      setState(
+        "lectorEstado",
+        response.duplicada
+          ? "La pulsera grupal ya había sido registrada."
+          : "Grupo registrado correctamente.",
+        false,
+        true
+      );
+
+      navigator.vibrate?.(
+        [100, 60, 100]
+      );
+
+      return;
+    }
+
+    /*
+      MODALIDAD INDIVIDUAL
+    */
     if (
       response.duplicada ===
       true
@@ -2551,6 +2587,48 @@ async function registrarLecturaAsistencia(
 }
 
 function renderAsistencia() {
+  /*
+    MODALIDAD GRUPAL
+  */
+  if (
+    state.asistencia?.modalidad ===
+    "grupal"
+  ) {
+    const total =
+      Number(
+        state.asistencia.totalEsperado ||
+        0
+      );
+
+    $("asistenciaContador")
+      .textContent =
+      state.asistencia.grupoRegistrado
+        ? `GRUPO REGISTRADO · ${total} pasajeros`
+        : `${total} pasajeros`;
+
+    $("asistenciaResumen")
+      .innerHTML = `
+        <div class="info-section">
+          <h3>
+            Pulsera grupal
+          </h3>
+
+          <div class="empty-box">
+            ${
+              state.asistencia.grupoRegistrado
+                ? `✓ La pulsera grupal fue registrada. El grupo tiene ${total} pasajero(s).`
+                : `Este grupo utiliza modalidad grupal. Al leer la pulsera se registrará el grupo completo. Total asociado: ${total} pasajero(s).`
+            }
+          </div>
+        </div>
+      `;
+
+    return;
+  }
+
+  /*
+    MODALIDAD INDIVIDUAL
+  */
   const total =
     Number(
       state.asistencia?.totalEsperado ||
