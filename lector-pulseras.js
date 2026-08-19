@@ -19,11 +19,7 @@ const state = {
   pendingNfcCode: "",
 
   ubicacion: null,
-  ubicacionSolicitada: false,
-
-  asistencia: null,
-  asistenciaPasajeros: [],
-  asistenciaLeidos: new Map()
+  ubicacionSolicitada: false
 };
 
 init();
@@ -157,29 +153,12 @@ function bindEvents() {
       activarModoFicha
     );
 
-  $("btnModoAsistencia")
+  $("btnIrAsistencia")
     ?.addEventListener(
       "click",
-      activarModoAsistencia
+      irAAsistencia
     );
 
-  $("btnNuevaAsistencia")
-    ?.addEventListener(
-      "click",
-      crearNuevaAsistencia
-    );
-
-  $("btnLeerAsistencia")
-    ?.addEventListener(
-      "click",
-      leerPulseraAsistencia
-    );
-
-  $("btnFinalizarAsistencia")
-    ?.addEventListener(
-      "click",
-      finalizarAsistencia
-    );
 }
 
 async function iniciarSesion() {
@@ -330,20 +309,6 @@ async function restaurarModo() {
       PORTAL_CONFIG.modeKey
     ) ||
     "";
-
-  if (
-    modoGuardado ===
-    "asistencia"
-  ) {
-    state.modo =
-      "asistencia";
-
-    activarModoAsistencia();
-
-    await restaurarAsistenciaActiva();
-
-    return;
-  }
 
   if (
     modoGuardado ===
@@ -574,18 +539,9 @@ async function leerPulseraNfc() {
 
         controller.abort();
 
-        if (
-          state.modo ===
-          "asistencia"
-        ) {
-          await registrarLecturaAsistencia(
-            codigo
-          );
-        } else {
-          await consultarCodigo(
-            codigo
-          );
-        }
+        await consultarCodigo(
+          codigo
+        );
 
         state.reading =
           false;
@@ -627,17 +583,6 @@ async function buscarCodigoManual() {
       "lectorEstado",
       "Escribe un código válido.",
       true
-    );
-
-    return;
-  }
-
-  if (
-    state.modo ===
-    "asistencia"
-  ) {
-    await registrarLecturaAsistencia(
-      codigo
     );
 
     return;
@@ -745,6 +690,40 @@ function capturarNfcDesdeUrl() {
     return;
   }
 
+  /*
+    Si existe una asistencia activa, esta pulsera
+    debe ir al módulo de asistencia.
+
+    Esto es especialmente importante en iPhone,
+    porque iOS siempre abrirá la URL grabada
+    en la pulsera.
+  */
+  const modoGuardado =
+    localStorage.getItem(
+      PORTAL_CONFIG.modeKey
+    ) ||
+    "";
+
+  const asistenciaId =
+    localStorage.getItem(
+      PORTAL_CONFIG.activeAttendanceKey
+    ) ||
+    "";
+
+  if (
+    modoGuardado ===
+      "asistencia" &&
+    asistenciaId
+  ) {
+    window.location.replace(
+      `asistencia.html?nfc=${encodeURIComponent(
+        codigo
+      )}`
+    );
+
+    return;
+  }
+
   state.pendingNfcCode =
     codigo;
 
@@ -752,15 +731,6 @@ function capturarNfcDesdeUrl() {
     PORTAL_CONFIG.pendingNfcKey,
     codigo
   );
-
-  if (
-    state.modo
-  ) {
-    sessionStorage.setItem(
-      PORTAL_CONFIG.pendingModeKey,
-      state.modo
-    );
-  }
 
   const cleanUrl =
     `${window.location.origin}${window.location.pathname}`;
@@ -797,43 +767,6 @@ async function procesarNfcPendiente() {
     PORTAL_CONFIG.pendingNfcKey
   );
 
-  if (
-    !state.modo
-  ) {
-    state.modo =
-      localStorage.getItem(
-        PORTAL_CONFIG.modeKey
-      ) ||
-      "";
-  }
-
-  if (
-    state.modo ===
-      "asistencia" &&
-    state.asistencia
-  ) {
-    await registrarLecturaAsistencia(
-      codigo
-    );
-
-    return;
-  }
-
-  if (
-    state.modo ===
-    "asistencia"
-  ) {
-    activarModoAsistencia();
-
-    setState(
-      "lectorEstado",
-      "La pulsera fue detectada, pero primero debes iniciar o recuperar una lista de asistencia.",
-      true
-    );
-
-    return;
-  }
-
   state.modo =
     "ficha_medica";
 
@@ -841,8 +774,6 @@ async function procesarNfcPendiente() {
     PORTAL_CONFIG.modeKey,
     state.modo
   );
-
-  activarModoFicha();
 
   await consultarCodigo(
     codigo
@@ -1823,6 +1754,10 @@ function limpiarSesion() {
     PORTAL_CONFIG.activeAttendanceKey
   );
 
+  localStorage.removeItem(
+    PORTAL_CONFIG.activeAttendanceKey
+  );
+
   state.sessionToken =
     "";
 
@@ -1834,15 +1769,6 @@ function limpiarSesion() {
 
   state.modo =
     "";
-
-  state.asistencia =
-    null;
-
-  state.asistenciaPasajeros =
-    [];
-
-  state.asistenciaLeidos =
-    new Map();
 }
 
 async function solicitarUbicacionInicial() {
@@ -2010,47 +1936,26 @@ async function activarModoFicha() {
   }
 }
 
-function activarModoAsistencia() {
-  state.modo =
-    "asistencia";
+function irAAsistencia() {
+  if (
+    !state.sessionToken
+  ) {
+    setState(
+      "lectorEstado",
+      "La sesión del grupo no está activa.",
+      true
+    );
+
+    return;
+  }
 
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
-    state.modo
+    "asistencia"
   );
 
-  $("modoLecturaPanel")
-    ?.classList
-    .add("hidden");
-
-  $("asistenciaPanel")
-    ?.classList
-    .remove("hidden");
-
-  setState(
-    "lectorEstado",
-    state.asistencia
-      ? "Lista activa. Continúa leyendo pulseras."
-      : "Crea una nueva lista de asistencia."
-  );
-}
-
-function resetModo() {
-  state.modo =
-    "";
-
-  localStorage.removeItem(
-    PORTAL_CONFIG.modeKey
-  );
-
-  $("asistenciaPanel")
-    ?.classList
-    .add("hidden");
-
-  setState(
-    "lectorEstado",
-    "Selecciona qué deseas hacer."
-  );
+  window.location.href =
+    "asistencia.html";
 }
 
 async function obtenerUbicacionLectura() {
@@ -2239,579 +2144,3 @@ function escAttribute(
   );
 }
 
-async function crearNuevaAsistencia() {
-  if (
-    !state.sessionToken
-  ) {
-    return;
-  }
-
-  const nombre =
-    String(
-      $("nombreAsistenciaInput")
-        ?.value ||
-      ""
-    ).trim();
-
-  setDisabled(
-    "btnNuevaAsistencia",
-    true
-  );
-
-  setState(
-    "lectorEstado",
-    "Creando lista..."
-  );
-
-  try {
-    const ubicacion =
-      await obtenerUbicacionLectura();
-
-    const response =
-      await callApiSession(
-        "crearAsistencia",
-        {
-          nombre,
-          ubicacion
-        }
-      );
-
-    state.asistencia =
-      response.asistencia;
-    localStorage.setItem(
-      PORTAL_CONFIG.activeAttendanceKey,
-      state.asistencia.id
-    );
-
-    state.asistenciaPasajeros =
-      Array.isArray(
-        response.pasajeros
-      )
-        ? response.pasajeros
-        : [];
-
-    state.asistenciaLeidos =
-      new Map();
-
-    $("asistenciaActiva")
-      ?.classList
-      .remove("hidden");
-
-    $("btnNuevaAsistencia")
-      ?.classList
-      .add("hidden");
-
-    $("nombreAsistenciaInput")
-      .disabled =
-      true;
-
-    renderAsistencia();
-
-    setState(
-      "lectorEstado",
-      "Lista iniciada. Comienza a leer pulseras.",
-      false,
-      true
-    );
-  } catch (error) {
-    setState(
-      "lectorEstado",
-      error.message ||
-      "No fue posible crear la lista.",
-      true
-    );
-  } finally {
-    setDisabled(
-      "btnNuevaAsistencia",
-      false
-    );
-  }
-}
-
-async function restaurarAsistenciaActiva() {
-  const asistenciaId =
-    localStorage.getItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    ) ||
-    "";
-
-  if (!asistenciaId) {
-    return;
-  }
-
-  try {
-    const response =
-      await callApiSession(
-        "estadoAsistencia",
-        {
-          asistenciaId
-        }
-      );
-
-    if (
-      response.asistencia?.estado !==
-      "ACTIVA"
-    ) {
-      localStorage.removeItem(
-        PORTAL_CONFIG.activeAttendanceKey
-      );
-
-      return;
-    }
-
-    state.asistencia =
-      response.asistencia;
-
-    state.asistenciaPasajeros =
-      Array.isArray(
-        response.pasajeros
-      )
-        ? response.pasajeros
-        : [];
-
-    state.asistenciaLeidos =
-      new Map(
-        (
-          response.leidos ||
-          []
-        ).map(
-          (item) => [
-            item.inscripcionId,
-            item
-          ]
-        )
-      );
-
-    $("asistenciaActiva")
-      ?.classList
-      .remove("hidden");
-
-    $("btnNuevaAsistencia")
-      ?.classList
-      .add("hidden");
-
-    if (
-      $("nombreAsistenciaInput")
-    ) {
-      $("nombreAsistenciaInput").disabled =
-        true;
-
-      $("nombreAsistenciaInput").value =
-        state.asistencia.nombre ||
-        "";
-    }
-
-    renderAsistencia();
-  } catch (error) {
-    console.warn(
-      "[lector-pulseras] restaurar asistencia",
-      error
-    );
-
-    localStorage.removeItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    );
-  }
-}
-
-async function registrarLecturaAsistencia(
-  codigoRaw
-) {
-  if (
-    !state.asistencia
-  ) {
-    setState(
-      "lectorEstado",
-      "Primero debes comenzar una lista.",
-      true
-    );
-
-    return;
-  }
-
-  const codigo =
-    sanitizeCode(
-      codigoRaw
-    );
-
-  const ubicacion =
-    await obtenerUbicacionLectura();
-
-  try {
-    const response =
-      await callApiSession(
-        "registrarAsistencia",
-        {
-          asistenciaId:
-            state.asistencia.id,
-
-          codigo,
-
-          ubicacion
-        }
-      );
-
-    if (
-      response.otroGrupo ===
-      true
-    ) {
-      setState(
-        "lectorEstado",
-        `Esta pulsera corresponde a otro grupo (${response.grupoPulsera || "otro grupo"}). No fue agregada.`,
-        true
-      );
-
-      navigator.vibrate?.(
-        [250, 100, 250]
-      );
-
-      return;
-    }
-
-    /*
-      MODALIDAD GRUPAL
-      Solo registramos que la pulsera grupal fue leída.
-      No inventamos pasajeros presentes.
-    */
-    if (
-      response.modalidad ===
-      "grupal"
-    ) {
-      state.asistencia = {
-        ...state.asistencia,
-        ...response.asistencia,
-
-        grupoRegistrado:
-          true
-      };
-
-      renderAsistencia();
-
-      setState(
-        "lectorEstado",
-        response.duplicada
-          ? "La pulsera grupal ya había sido registrada."
-          : "Grupo registrado correctamente.",
-        false,
-        true
-      );
-
-      navigator.vibrate?.(
-        [100, 60, 100]
-      );
-
-      return;
-    }
-
-    /*
-      MODALIDAD INDIVIDUAL
-    */
-    if (
-      response.duplicada ===
-      true
-    ) {
-      setState(
-        "lectorEstado",
-        `${response.nombrePasajero || "Este pasajero"} ya había sido registrado.`,
-        false,
-        true
-      );
-    } else {
-      setState(
-        "lectorEstado",
-        `${response.nombrePasajero || "Pasajero"} registrado correctamente.`,
-        false,
-        true
-      );
-    }
-
-    if (
-      response.inscripcionId
-    ) {
-      state.asistenciaLeidos
-        .set(
-          response.inscripcionId,
-          response
-        );
-    }
-
-    if (
-      response.asistencia
-    ) {
-      state.asistencia = {
-        ...state.asistencia,
-        ...response.asistencia
-      };
-    }
-
-    renderAsistencia();
-
-    navigator.vibrate?.(
-      [100, 60, 100]
-    );
-  } catch (error) {
-    setState(
-      "lectorEstado",
-      error.message ||
-      "No fue posible registrar la pulsera.",
-      true
-    );
-  }
-}
-
-function renderAsistencia() {
-  /*
-    MODALIDAD GRUPAL
-  */
-  if (
-    state.asistencia?.modalidad ===
-    "grupal"
-  ) {
-    const total =
-      Number(
-        state.asistencia.totalEsperado ||
-        0
-      );
-
-    $("asistenciaContador")
-      .textContent =
-      state.asistencia.grupoRegistrado
-        ? `GRUPO REGISTRADO · ${total} pasajeros`
-        : `${total} pasajeros`;
-
-    $("asistenciaResumen")
-      .innerHTML = `
-        <div class="info-section">
-          <h3>
-            Pulsera grupal
-          </h3>
-
-          <div class="empty-box">
-            ${
-              state.asistencia.grupoRegistrado
-                ? `✓ La pulsera grupal fue registrada. El grupo tiene ${total} pasajero(s).`
-                : `Este grupo utiliza modalidad grupal. Al leer la pulsera se registrará el grupo completo. Total asociado: ${total} pasajero(s).`
-            }
-          </div>
-        </div>
-      `;
-
-    return;
-  }
-
-  /*
-    MODALIDAD INDIVIDUAL
-  */
-  const total =
-    Number(
-      state.asistencia?.totalEsperado ||
-      state.asistenciaPasajeros.length ||
-      0
-    );
-
-  const leidos =
-    Number(
-      state.asistencia?.totalLeidos ||
-      state.asistenciaLeidos.size ||
-      0
-    );
-
-  $("asistenciaContador")
-    .textContent =
-    `${leidos} / ${total}`;
-
-  const idsLeidos =
-    new Set(
-      [
-        ...state.asistenciaLeidos
-          .keys()
-      ]
-    );
-
-  const pendientes =
-    state.asistenciaPasajeros
-      .filter(
-        (
-          pasajero
-        ) =>
-          !idsLeidos.has(
-            pasajero.inscripcionId
-          )
-      );
-
-  const leidosItems =
-    state.asistenciaPasajeros
-      .filter(
-        (
-          pasajero
-        ) =>
-          idsLeidos.has(
-            pasajero.inscripcionId
-          )
-      );
-
-  $("asistenciaResumen")
-    .innerHTML = `
-      <div class="info-section">
-        <h3>
-          Leídos (${leidosItems.length})
-        </h3>
-
-        ${
-          leidosItems.length
-            ? `
-              <div class="passenger-list">
-                ${leidosItems
-                  .map(
-                    (
-                      item
-                    ) => `
-                      <div class="passenger-row">
-                        <span>
-                          <strong>
-                            ✓ ${esc(
-                              item.nombreCompleto ||
-                              "Sin nombre"
-                            )}
-                          </strong>
-
-                          <span>
-                            ${esc(
-                              item.documento ||
-                              ""
-                            )}
-                          </span>
-                        </span>
-                      </div>
-                    `
-                  )
-                  .join("")}
-              </div>
-            `
-            : `
-              <div class="empty-box">
-                Todavía no hay pasajeros leídos.
-              </div>
-            `
-        }
-      </div>
-
-      <div class="info-section">
-        <h3>
-          Pendientes (${pendientes.length})
-        </h3>
-
-        ${
-          pendientes.length
-            ? `
-              <div class="passenger-list">
-                ${pendientes
-                  .map(
-                    (
-                      item
-                    ) => `
-                      <div class="passenger-row">
-                        <span>
-                          <strong>
-                            ${esc(
-                              item.nombreCompleto ||
-                              "Sin nombre"
-                            )}
-                          </strong>
-
-                          <span>
-                            ${esc(
-                              item.documento ||
-                              ""
-                            )}
-                          </span>
-                        </span>
-                      </div>
-                    `
-                  )
-                  .join("")}
-              </div>
-            `
-            : `
-              <div class="empty-box">
-                Todos los pasajeros fueron registrados.
-              </div>
-            `
-        }
-      </div>
-    `;
-}
-
-async function finalizarAsistencia() {
-  if (
-    !state.asistencia?.id
-  ) {
-    return;
-  }
-
-  try {
-    const ubicacion =
-      await obtenerUbicacionLectura();
-
-    const response =
-      await callApiSession(
-        "finalizarAsistencia",
-        {
-          asistenciaId:
-            state.asistencia.id,
-
-          ubicacion
-        }
-      );
-
-    state.asistencia = {
-      ...state.asistencia,
-      ...response.asistencia
-    };
-
-    localStorage.removeItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    );
-
-    setState(
-      "lectorEstado",
-      "Lista finalizada correctamente.",
-      false,
-      true
-    );
-
-    $("btnLeerAsistencia")
-      .disabled =
-      true;
-
-    $("btnFinalizarAsistencia")
-      .disabled =
-      true;
-  } catch (error) {
-    setState(
-      "lectorEstado",
-      error.message ||
-      "No fue posible finalizar la lista.",
-      true
-    );
-  }
-}
-
-async function leerPulseraAsistencia() {
-  if (
-    !state.asistencia
-  ) {
-    setState(
-      "lectorEstado",
-      "Primero comienza una nueva lista.",
-      true
-    );
-
-    return;
-  }
-
-  state.modo =
-    "asistencia";
-
-  await leerPulseraNfc();
-}
