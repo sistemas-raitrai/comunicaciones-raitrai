@@ -45,12 +45,6 @@ function bindEvents() {
       cerrarSesionGrupo
     );
 
-  $("btnLeerPulsera")
-    ?.addEventListener(
-      "click",
-      leerPulseraNfc
-    );
-
   $("btnToggleManual")
     ?.addEventListener(
       "click",
@@ -167,12 +161,6 @@ function bindEvents() {
     ?.addEventListener(
       "click",
       activarModoAsistencia
-    );
-
-  $("btnCancelarModo")
-    ?.addEventListener(
-      "click",
-      resetModo
     );
 
   $("btnNuevaAsistencia")
@@ -364,7 +352,12 @@ async function restaurarModo() {
     state.modo =
       "ficha_medica";
 
-    activarModoFicha();
+    setState(
+      "lectorEstado",
+      "Modo ficha médica activo. Acerca una pulsera o presiona LEER FICHA MÉDICA.",
+      false,
+      true
+    );
 
     return;
   }
@@ -527,8 +520,6 @@ async function leerPulseraNfc() {
   state.reading =
     true;
 
-  updateReadButton();
-
   setState(
     "lectorEstado",
     "Acerca la pulsera a la parte posterior del teléfono..."
@@ -599,7 +590,6 @@ async function leerPulseraNfc() {
         state.reading =
           false;
 
-        updateReadButton();
       },
       {
         signal:
@@ -614,8 +604,6 @@ async function leerPulseraNfc() {
 
     state.reading =
       false;
-
-    updateReadButton();
 
     setState(
       "lectorEstado",
@@ -1602,18 +1590,6 @@ function comprobarNfc() {
     "iPhone: acerca la pulsera a la parte superior del teléfono y toca la notificación NFC.";
 }
 
-function updateReadButton() {
-  $("btnLeerPulsera")
-    .disabled =
-    state.reading;
-
-  $("btnLeerPulsera")
-    .textContent =
-    state.reading
-      ? "ACERCA LA PULSERA..."
-      : "LEER PULSERA NFC";
-}
-
 function extractNfcCode(
   message
 ) {
@@ -2002,7 +1978,7 @@ function obtenerUbicacion({
   );
 }
 
-function activarModoFicha() {
+async function activarModoFicha() {
   state.modo =
     "ficha_medica";
 
@@ -2015,22 +1991,23 @@ function activarModoFicha() {
     ?.classList
     .add("hidden");
 
-  $("modoLecturaPanel")
-    ?.classList
-    .remove("hidden");
-
-  $("modoLecturaTitulo")
-    .textContent =
-    "Ficha médica";
-
-  $("btnLeerPulsera")
-    .textContent =
-    "LEER PULSERA NFC";
-
   setState(
     "lectorEstado",
-    "Acerca una pulsera para consultar su ficha médica."
+    "Modo ficha médica activo. Acerca una pulsera.",
+    false,
+    true
   );
+
+  /*
+    En Android podemos iniciar Web NFC
+    inmediatamente al tocar LEER FICHA MÉDICA.
+    En iPhone la pulsera abre la URL directamente.
+  */
+  if (
+    "NDEFReader" in window
+  ) {
+    await leerPulseraNfc();
+  }
 }
 
 function activarModoAsistencia() {
@@ -2065,10 +2042,6 @@ function resetModo() {
   localStorage.removeItem(
     PORTAL_CONFIG.modeKey
   );
-
-  $("modoLecturaPanel")
-    ?.classList
-    .add("hidden");
 
   $("asistenciaPanel")
     ?.classList
