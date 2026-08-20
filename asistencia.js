@@ -1157,43 +1157,171 @@ function comprobarNfc() {
 }
 
 async function recuperarUbicacion() {
-  const preference =
-    localStorage.getItem(
-      PORTAL_CONFIG.locationPreferenceKey
-    );
-
   if (
-    preference !==
-    "allowed" ||
     !navigator.geolocation
   ) {
     actualizarEstadoUbicacion(
-      "Ubicación no disponible o no autorizada."
+      "Este dispositivo no permite obtener ubicación."
     );
 
     return;
   }
 
-  await obtenerUbicacionLectura();
+  /*
+    Preguntamos al navegador cuál es
+    el permiso REAL de ubicación.
+  */
+  if (
+    navigator.permissions?.query
+  ) {
+    try {
+      const permission =
+        await navigator.permissions.query({
+          name:
+            "geolocation"
+        });
+
+      if (
+        permission.state ===
+        "granted"
+      ) {
+        localStorage.setItem(
+          PORTAL_CONFIG.locationPreferenceKey,
+          "allowed"
+        );
+
+        await obtenerUbicacionLectura();
+
+        return;
+      }
+
+      if (
+        permission.state ===
+        "denied"
+      ) {
+        localStorage.setItem(
+          PORTAL_CONFIG.locationPreferenceKey,
+          "denied"
+        );
+
+        actualizarEstadoUbicacion(
+          "Ubicación bloqueada en el navegador."
+        );
+
+        return;
+      }
+
+      /*
+        permission.state === "prompt"
+
+        No está denegada.
+        Intentamos obtenerla para que
+        el navegador pregunte al usuario.
+      */
+      await solicitarUbicacionAsistencia();
+
+      return;
+    } catch (error) {
+      console.warn(
+        "[asistencia] permiso ubicación",
+        error
+      );
+    }
+  }
+
+  /*
+    Navegadores donde Permissions API
+    no esté disponible.
+  */
+  await solicitarUbicacionAsistencia();
+}
+
+function solicitarUbicacionAsistencia() {
+  return new Promise(
+    (resolve) => {
+      navigator.geolocation
+        .getCurrentPosition(
+          (position) => {
+            state.ubicacion = {
+              lat:
+                position.coords.latitude,
+
+              lng:
+                position.coords.longitude,
+
+              accuracy:
+                position.coords.accuracy,
+
+              timestamp:
+                Date.now()
+            };
+
+            localStorage.setItem(
+              PORTAL_CONFIG.locationPreferenceKey,
+              "allowed"
+            );
+
+            actualizarEstadoUbicacion(
+              `Ubicación habilitada · precisión aproximada ${Math.round(
+                position.coords.accuracy
+              )} m`
+            );
+
+            resolve(
+              state.ubicacion
+            );
+          },
+
+          (error) => {
+            state.ubicacion =
+              null;
+
+            if (
+              error?.code ===
+              error.PERMISSION_DENIED
+            ) {
+              localStorage.setItem(
+                PORTAL_CONFIG.locationPreferenceKey,
+                "denied"
+              );
+
+              actualizarEstadoUbicacion(
+                "Ubicación no autorizada en este navegador."
+              );
+            } else {
+              /*
+                Si fue timeout o GPS temporalmente
+                no disponible, NO lo tratamos
+                como permiso rechazado.
+              */
+              actualizarEstadoUbicacion(
+                "No fue posible obtener la ubicación en este momento."
+              );
+            }
+
+            resolve(
+              null
+            );
+          },
+
+          {
+            enableHighAccuracy:
+              true,
+
+            timeout:
+              10000,
+
+            maximumAge:
+              30000
+          }
+        );
+    }
+  );
 }
 
 function obtenerUbicacionLectura() {
   if (
     !navigator.geolocation
-  ) {
-    return Promise.resolve(
-      null
-    );
-  }
-
-  const preference =
-    localStorage.getItem(
-      PORTAL_CONFIG.locationPreferenceKey
-    );
-
-  if (
-    preference !==
-    "allowed"
   ) {
     return Promise.resolve(
       null
@@ -1219,6 +1347,11 @@ function obtenerUbicacionLectura() {
                 Date.now()
             };
 
+            localStorage.setItem(
+              PORTAL_CONFIG.locationPreferenceKey,
+              "allowed"
+            );
+
             actualizarEstadoUbicacion(
               `Ubicación habilitada · precisión aproximada ${Math.round(
                 position.coords.accuracy
@@ -1230,10 +1363,27 @@ function obtenerUbicacionLectura() {
             );
           },
 
-          () => {
-            actualizarEstadoUbicacion(
-              "No fue posible obtener la ubicación."
-            );
+          (error) => {
+            state.ubicacion =
+              null;
+
+            if (
+              error?.code ===
+              error.PERMISSION_DENIED
+            ) {
+              localStorage.setItem(
+                PORTAL_CONFIG.locationPreferenceKey,
+                "denied"
+              );
+
+              actualizarEstadoUbicacion(
+                "Ubicación no autorizada en este navegador."
+              );
+            } else {
+              actualizarEstadoUbicacion(
+                "No fue posible actualizar la ubicación."
+              );
+            }
 
             resolve(
               null
@@ -1245,7 +1395,7 @@ function obtenerUbicacionLectura() {
               true,
 
             timeout:
-              8000,
+              10000,
 
             maximumAge:
               30000
