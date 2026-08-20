@@ -283,6 +283,10 @@ function abrirLector() {
       .join(" · ") ||
     "Acceso autorizado";
 
+  $("loadingPanel")
+    ?.classList
+    .add("hidden");
+
   $("loginPanel")
     ?.classList
     .add("hidden");
@@ -297,38 +301,36 @@ function abrirLector() {
 
   setState(
     "lectorEstado",
-    "Acceso habilitado. Selecciona una acción.",
+    "Acerca una pulsera para consultar su ficha médica o selecciona Pasar Lista.",
     false,
     true
   );
 }
 
 async function restaurarModo() {
-  const modoGuardado =
-    localStorage.getItem(
-      PORTAL_CONFIG.modeKey
-    ) ||
-    "";
-
-  if (
-    modoGuardado ===
-    "ficha_medica"
-  ) {
-    state.modo =
-      "ficha_medica";
-
-    setState(
-      "lectorEstado",
-      "Modo ficha médica activo. Acerca una pulsera o presiona LEER FICHA MÉDICA.",
-      false,
-      true
-    );
-
-    return;
-  }
+  /*
+    En la página principal la acción por defecto
+    siempre es ficha médica.
+  */
 
   state.modo =
-    "";
+    "ficha_medica";
+
+  localStorage.setItem(
+    PORTAL_CONFIG.modeKey,
+    "ficha_medica"
+  );
+
+  localStorage.removeItem(
+    PORTAL_CONFIG.attendanceModeKey
+  );
+
+  setState(
+    "lectorEstado",
+    "Acerca una pulsera para consultar su ficha médica o selecciona Pasar Lista.",
+    false,
+    true
+  );
 }
 
 async function restaurarSesion() {
@@ -370,6 +372,10 @@ async function restaurarSesion() {
 }
 
 function mostrarLogin() {
+  $("loadingPanel")
+    ?.classList
+    .add("hidden");
+
   $("loginPanel")
     ?.classList
     .remove("hidden");
@@ -426,16 +432,6 @@ function cerrarSesionGrupo() {
   ) {
     $("codigoManualInput").value =
       "";
-  }
-
-  if (
-    $("nombreAsistenciaInput")
-  ) {
-    $("nombreAsistenciaInput").value =
-      "";
-
-    $("nombreAsistenciaInput").disabled =
-      false;
   }
 
   setState(
@@ -691,18 +687,19 @@ function capturarNfcDesdeUrl() {
   }
 
   /*
-    Si existe una asistencia activa, esta pulsera
-    debe ir al módulo de asistencia.
+    REGLA DEFINITIVA:
 
-    Esto es especialmente importante en iPhone,
-    porque iOS siempre abrirá la URL grabada
-    en la pulsera.
+    - Si el usuario está AHORA en modo asistencia,
+      enviamos esta lectura a asistencia.html.
+
+    - En cualquier otro caso, la lectura directa
+      siempre significa FICHA MÉDICA.
   */
-  const modoGuardado =
+  const asistenciaActiva =
     localStorage.getItem(
-      PORTAL_CONFIG.modeKey
-    ) ||
-    "";
+      PORTAL_CONFIG.attendanceModeKey
+    ) ===
+    "active";
 
   const asistenciaId =
     localStorage.getItem(
@@ -711,8 +708,7 @@ function capturarNfcDesdeUrl() {
     "";
 
   if (
-    modoGuardado ===
-      "asistencia" &&
+    asistenciaActiva &&
     asistenciaId
   ) {
     window.location.replace(
@@ -723,6 +719,14 @@ function capturarNfcDesdeUrl() {
 
     return;
   }
+
+  /*
+    Lectura normal:
+    SIEMPRE ficha médica.
+  */
+  localStorage.removeItem(
+    PORTAL_CONFIG.attendanceModeKey
+  );
 
   state.pendingNfcCode =
     codigo;
@@ -767,12 +771,20 @@ async function procesarNfcPendiente() {
     PORTAL_CONFIG.pendingNfcKey
   );
 
+  /*
+    Toda lectura recibida en index
+    es FICHA MÉDICA.
+  */
   state.modo =
     "ficha_medica";
 
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
-    state.modo
+    "ficha_medica"
+  );
+
+  localStorage.removeItem(
+    PORTAL_CONFIG.attendanceModeKey
   );
 
   await consultarCodigo(
@@ -1753,9 +1765,9 @@ function limpiarSesion() {
   localStorage.removeItem(
     PORTAL_CONFIG.activeAttendanceKey
   );
-
+  
   localStorage.removeItem(
-    PORTAL_CONFIG.activeAttendanceKey
+    PORTAL_CONFIG.attendanceModeKey
   );
 
   state.sessionToken =
@@ -1910,24 +1922,26 @@ async function activarModoFicha() {
 
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
-    state.modo
+    "ficha_medica"
   );
 
-  $("asistenciaPanel")
-    ?.classList
-    .add("hidden");
+  localStorage.removeItem(
+    PORTAL_CONFIG.attendanceModeKey
+  );
 
   setState(
     "lectorEstado",
-    "Modo ficha médica activo. Acerca una pulsera.",
+    "Acerca una pulsera para consultar su ficha médica.",
     false,
     true
   );
 
   /*
-    En Android podemos iniciar Web NFC
-    inmediatamente al tocar LEER FICHA MÉDICA.
-    En iPhone la pulsera abre la URL directamente.
+    En Android iniciamos Web NFC si el usuario
+    presiona expresamente el botón.
+
+    Si la pulsera abre directamente la URL,
+    no necesitamos esta parte.
   */
   if (
     "NDEFReader" in window
@@ -1948,6 +1962,15 @@ function irAAsistencia() {
 
     return;
   }
+
+  /*
+    Ahora sí dejamos expresamente marcado
+    que el usuario decidió entrar a asistencia.
+  */
+  localStorage.setItem(
+    PORTAL_CONFIG.attendanceModeKey,
+    "active"
+  );
 
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
