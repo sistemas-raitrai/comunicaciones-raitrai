@@ -55,6 +55,11 @@ async function init() {
     "asistencia"
   );
 
+  localStorage.setItem(
+    PORTAL_CONFIG.attendanceModeKey,
+    "active"
+  );
+
   const token =
     localStorage.getItem(
       PORTAL_CONFIG.sessionTokenKey
@@ -171,6 +176,13 @@ function bindEvents() {
 
 function volverAlLector() {
   detenerLectura();
+
+  /*
+    Salimos expresamente del modo asistencia.
+  */
+  localStorage.removeItem(
+    PORTAL_CONFIG.attendanceModeKey
+  );
 
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
@@ -944,6 +956,10 @@ async function finalizarAsistencia() {
 
     localStorage.removeItem(
       PORTAL_CONFIG.activeAttendanceKey
+    );
+
+    localStorage.removeItem(
+      PORTAL_CONFIG.attendanceModeKey
     );
 
     $("asistenciaPanel")
