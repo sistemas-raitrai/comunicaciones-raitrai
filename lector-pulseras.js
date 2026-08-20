@@ -1820,7 +1820,72 @@ async function recuperarUbicacionSilenciosa() {
   if (
     !navigator.geolocation
   ) {
+    actualizarEstadoUbicacion(
+      "Ubicación no disponible en este dispositivo."
+    );
+
     return;
+  }
+
+  if (
+    navigator.permissions?.query
+  ) {
+    try {
+      const permission =
+        await navigator.permissions.query({
+          name:
+            "geolocation"
+        });
+
+      if (
+        permission.state ===
+        "granted"
+      ) {
+        localStorage.setItem(
+          PORTAL_CONFIG.locationPreferenceKey,
+          "allowed"
+        );
+
+        await obtenerUbicacion({
+          inicial:
+            false
+        });
+
+        return;
+      }
+
+      if (
+        permission.state ===
+        "denied"
+      ) {
+        localStorage.setItem(
+          PORTAL_CONFIG.locationPreferenceKey,
+          "denied"
+        );
+
+        actualizarEstadoUbicacion(
+          "Ubicación bloqueada en el navegador."
+        );
+
+        return;
+      }
+
+      /*
+        Está en estado prompt.
+        No mostramos el popup automáticamente
+        durante una restauración silenciosa.
+      */
+      actualizarEstadoUbicacion(
+        "Ubicación disponible. Se solicitará al usar una lectura."
+      );
+
+      return;
+    } catch (error) {
+      console.warn(
+        "[lector-pulseras] permiso ubicación",
+        error
+      );
+    }
   }
 
   const preference =
@@ -1829,16 +1894,14 @@ async function recuperarUbicacionSilenciosa() {
     );
 
   if (
-    preference !==
+    preference ===
     "allowed"
   ) {
-    return;
+    await obtenerUbicacion({
+      inicial:
+        false
+    });
   }
-
-  await obtenerUbicacion({
-    inicial:
-      false
-  });
 }
 
 function obtenerUbicacion({
