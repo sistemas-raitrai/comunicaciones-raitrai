@@ -23,6 +23,9 @@ export const PORTAL_CONFIG = Object.freeze({
   activeAttendanceKey:
     "raitrai_nfc_active_attendance_v3",
 
+  attendanceModeKey:
+  "raitrai_nfc_attendance_mode_v1",
+
   locationPreferenceKey:
     "raitrai_nfc_location_preference_v1"
 });
