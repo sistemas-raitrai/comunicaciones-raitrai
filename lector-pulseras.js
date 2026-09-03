@@ -29,9 +29,124 @@ async function init() {
 
   comprobarNfc();
 
+  /*
+    Primero detectamos si la página fue abierta
+    directamente por una pulsera NFC.
+  */
+
   capturarNfcDesdeUrl();
 
+  const codigoPendiente =
+    state.pendingNfcCode ||
+    sessionStorage.getItem(
+      PORTAL_CONFIG.pendingNfcKey
+    ) ||
+    "";
+
+  const token =
+    String(
+      localStorage.getItem(
+        PORTAL_CONFIG.sessionTokenKey
+      ) ||
+      ""
+    ).trim();
+
+  /*
+    =========================================================
+    CAMINO RÁPIDO NFC
+    =========================================================
+
+    Si tenemos:
+
+      - una pulsera pendiente
+      - una sesión guardada
+
+    NO hacemos primero estadoSesion.
+    NO esperamos ubicación.
+
+    Consultamos inmediatamente la pulsera.
+
+    consultarPulsera ya valida el sessionToken
+    en el backend.
+  */
+
+  if (
+    codigoPendiente &&
+    token
+  ) {
+    state.sessionToken =
+      token;
+
+    restaurarGrupoDesdeLocalStorage();
+
+    if (
+      state.activeGroup
+    ) {
+      abrirLector();
+    } else {
+      $("loadingPanel")
+        ?.classList
+        .add("hidden");
+    }
+
+    await procesarNfcPendiente();
+
+    /*
+      Lo secundario ocurre después.
+
+      No bloquea la visualización
+      de la ficha médica.
+    */
+
+    void recuperarUbicacionSilenciosa();
+
+    return;
+  }
+
+  /*
+    Entrada normal al portal.
+  */
+
   await restaurarSesion();
+}
+
+function restaurarGrupoDesdeLocalStorage() {
+  const raw =
+    localStorage.getItem(
+      PORTAL_CONFIG.activeGroupKey
+    );
+
+  if (!raw) {
+    return false;
+  }
+
+  try {
+    const grupo =
+      JSON.parse(
+        raw
+      );
+
+    if (
+      !grupo ||
+      typeof grupo !==
+        "object"
+    ) {
+      return false;
+    }
+
+    state.activeGroup =
+      grupo;
+
+    return true;
+
+  } catch (error) {
+    console.warn(
+      "[lector-pulseras] grupo local inválido",
+      error
+    );
+
+    return false;
+  }
 }
 
 function bindEvents() {
@@ -666,27 +781,65 @@ async function consultarCodigo(
       codigoRaw
     );
 
+  if (!codigo) {
+    return;
+  }
+
   setState(
     "lectorEstado",
     `Consultando ${codigo}...`
   );
 
   try {
+    /*
+      =========================================================
+      VELOCIDAD
+      =========================================================
+
+      Nunca esperamos geolocalización para mostrar
+      una ficha médica.
+
+      Si ya tenemos una ubicación reciente,
+      la enviamos.
+
+      Si todavía no existe, enviamos null.
+    */
+
     const ubicacion =
-      await obtenerUbicacionLectura();
-    
+      state.ubicacion ||
+      null;
+
     const response =
       await callApiSession(
         "consultarPulsera",
         {
           codigo,
-    
+
           modo:
             "ficha_medica",
-    
+
           ubicacion
         }
       );
+
+    /*
+      Actualizamos también el grupo en memoria
+      aprovechando la propia respuesta.
+    */
+
+    if (
+      response.grupoLector
+    ) {
+      state.activeGroup =
+        response.grupoLector;
+
+      localStorage.setItem(
+        PORTAL_CONFIG.activeGroupKey,
+        JSON.stringify(
+          state.activeGroup
+        )
+      );
+    }
 
     if (
       response.modalidad ===
@@ -705,6 +858,7 @@ async function consultarCodigo(
       renderGroupResult(
         response
       );
+
     } else {
       renderIndividualResult(
         response
@@ -721,9 +875,19 @@ async function consultarCodigo(
     navigator.vibrate?.(
       [100, 60, 100]
     );
+
+    /*
+      Ahora sí podemos intentar actualizar
+      ubicación en segundo plano.
+
+      Esto NO bloquea la ficha.
+    */
+
+    void recuperarUbicacionSilenciosa();
+
   } catch (error) {
     $("resultadoPanel")
-      .classList
+      ?.classList
       .add("hidden");
 
     setState(
