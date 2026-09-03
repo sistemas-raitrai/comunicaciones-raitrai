@@ -51,8 +51,9 @@ async function init() {
   comprobarNfc();
 
   /*
-    Esta página representa explícitamente
-    el modo PASAR LISTA.
+    =========================================================
+    ESTA PÁGINA REPRESENTA EL MODO ASISTENCIA
+    =========================================================
   */
 
   localStorage.setItem(
@@ -66,12 +67,11 @@ async function init() {
   );
 
   /*
-    En iPhone cada lectura NFC puede abrir
-    nuevamente la página.
+    En iPhone cada lectura puede volver a abrir
+    la página desde una URL.
 
-    Si index.html nos envió el ID de la
-    asistencia en la URL, lo recuperamos
-    inmediatamente.
+    Recuperamos el ID de la asistencia si viene
+    explícitamente en la URL.
   */
 
   const params =
@@ -85,14 +85,32 @@ async function init() {
       ""
     ).trim();
 
+  /*
+    =========================================================
+    RECUPERAR SESIÓN GUARDADA
+    =========================================================
+  */
+
   const token =
-    localStorage.getItem(
-      PORTAL_CONFIG.sessionTokenKey
-    ) ||
-    "";
+    String(
+      localStorage.getItem(
+        PORTAL_CONFIG.sessionTokenKey
+      ) ||
+      ""
+    ).trim();
+
+  /*
+    CASO REALMENTE SIN TOKEN.
+
+    Aquí sí podemos afirmar que este navegador
+    no encontró una sesión guardada.
+  */
 
   if (!token) {
-    mostrarSinSesion();
+    mostrarSinSesion(
+      "No se encontró una sesión guardada en este navegador. Abre el lector de pulseras e ingresa al grupo una vez desde este mismo navegador."
+    );
+
     return;
   }
 
@@ -100,6 +118,11 @@ async function init() {
     token;
 
   try {
+    /*
+      Validamos que el token guardado siga
+      siendo aceptado por el servidor.
+    */
+
     const response =
       await callApiSession(
         "estadoSesion",
@@ -111,19 +134,25 @@ async function init() {
 
     renderGrupo();
 
+    $("sinSesionPanel")
+      ?.classList
+      .add("hidden");
+
     $("asistenciaPanel")
       ?.classList
       .remove("hidden");
 
+    $("finalizadaPanel")
+      ?.classList
+      .add("hidden");
+
     await recuperarUbicacion();
 
     /*
-      IMPORTANTE:
+      Primero restauramos la lista.
 
-      Primero restauramos la asistencia.
-
-      Solo DESPUÉS procesamos la pulsera NFC
-      recibida desde el iPhone.
+      Recién después procesamos la pulsera
+      recibida por URL.
     */
 
     const asistenciaDisponible =
@@ -143,7 +172,39 @@ async function init() {
       error
     );
 
-    mostrarSinSesion();
+    /*
+      401 significa que el backend rechazó
+      explícitamente la sesión.
+
+      Eso es distinto a que el navegador
+      no tuviera token.
+    */
+
+    if (
+      Number(error?.status) ===
+      401
+    ) {
+      mostrarSinSesion(
+        error.message ||
+        "La sesión guardada ya no es válida. Ingresa nuevamente al grupo."
+      );
+
+      return;
+    }
+
+    /*
+      Si fue red, Cloud Function, timeout,
+      conexión, etc., NO decimos que la
+      sesión desapareció.
+    */
+
+    mostrarSinSesion(
+      `Existe una sesión guardada, pero no fue posible validarla en este momento.${
+        error?.message
+          ? ` Detalle: ${error.message}`
+          : ""
+      }`
+    );
   }
 }
 
@@ -235,7 +296,10 @@ function volverAlLector() {
     "index.html";
 }
 
-function mostrarSinSesion() {
+function mostrarSinSesion(
+  mensaje =
+    "Debes ingresar primero al lector de pulseras."
+) {
   $("asistenciaPanel")
     ?.classList
     .add("hidden");
@@ -247,6 +311,24 @@ function mostrarSinSesion() {
   $("sinSesionPanel")
     ?.classList
     .remove("hidden");
+
+  /*
+    No necesitamos modificar el HTML.
+
+    Buscamos directamente el texto descriptivo
+    que ya existe dentro del panel.
+  */
+
+  const texto =
+    $("sinSesionPanel")
+      ?.querySelector(
+        ".section-copy"
+      );
+
+  if (texto) {
+    texto.textContent =
+      mensaje;
+  }
 }
 
 function renderGrupo() {
@@ -1757,29 +1839,70 @@ async function callApiSession(
 ) {
   validateApiUrl();
 
-  const response =
-    await fetch(
-      PORTAL_CONFIG.apiUrl,
-      {
-        method:
-          "POST",
+  let response;
 
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
+  try {
+    response =
+      await fetch(
+        PORTAL_CONFIG.apiUrl,
+        {
+          method:
+            "POST",
 
-        body:
-          JSON.stringify({
-            accion,
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-            sessionToken:
-              state.sessionToken,
+          body:
+            JSON.stringify({
+              accion,
 
-            ...payload
-          })
-      }
-    );
+              sessionToken:
+                state.sessionToken,
+
+              ...payload
+            })
+        }
+      );
+
+  } catch (networkError) {
+    /*
+      IMPORTANTE:
+
+      Un error de red NO significa que
+      la sesión haya vencido.
+
+      No borramos absolutamente nada.
+    */
+
+    const error =
+      new Error(
+        "No fue posible conectar con el servidor."
+      );
+
+    error.status =
+      0;
+
+    error.cause =
+      networkError;
+
+    throw error;
+  }
+
+  let responsePayload = {};
+
+  try {
+    responsePayload =
+      await response.json();
+  } catch {
+    responsePayload = {};
+  }
+
+  /*
+    Solo un 401 confirmado por el servidor
+    invalida el token almacenado.
+  */
 
   if (
     response.status ===
@@ -1789,14 +1912,35 @@ async function callApiSession(
       PORTAL_CONFIG.sessionTokenKey
     );
 
-    throw new Error(
-      "La sesión venció. Vuelve a ingresar."
-    );
+    const error =
+      new Error(
+        responsePayload.error ||
+        "La sesión venció. Vuelve a ingresar."
+      );
+
+    error.status =
+      401;
+
+    throw error;
   }
 
-  return parseApiResponse(
-    response
-  );
+  if (
+    !response.ok ||
+    responsePayload.ok !== true
+  ) {
+    const error =
+      new Error(
+        responsePayload.error ||
+        `Error de consulta (${response.status})`
+      );
+
+    error.status =
+      response.status;
+
+    throw error;
+  }
+
+  return responsePayload;
 }
 
 async function parseApiResponse(
