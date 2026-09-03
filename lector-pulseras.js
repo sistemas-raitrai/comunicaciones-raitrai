@@ -687,45 +687,107 @@ function capturarNfcDesdeUrl() {
   }
 
   /*
-    REGLA DEFINITIVA:
+    =========================================================
+    REGLA NFC DESDE URL
+    =========================================================
 
-    - Si el usuario está AHORA en modo asistencia,
-      enviamos esta lectura a asistencia.html.
+    Especialmente importante para iPhone.
 
-    - En cualquier otro caso, la lectura directa
-      siempre significa FICHA MÉDICA.
+    iPhone abre nuevamente el link de la pulsera
+    cada vez que se realiza una lectura.
+
+    Si existe una asistencia activa, la lectura
+    debe volver SIEMPRE a esa misma asistencia.
+
+    Usamos dos indicadores de modo como respaldo:
+
+      attendanceModeKey === "active"
+
+    O:
+
+      modeKey === "asistencia"
+
+    Pero además exigimos que exista un
+    activeAttendanceKey.
+
+    Si no existe una asistencia activa,
+    la lectura se procesa normalmente como
+    FICHA MÉDICA.
   */
-  const asistenciaActiva =
-    localStorage.getItem(
-      PORTAL_CONFIG.attendanceModeKey
-    ) ===
-    "active";
 
   const asistenciaId =
+    String(
+      localStorage.getItem(
+        PORTAL_CONFIG.activeAttendanceKey
+      ) ||
+      ""
+    ).trim();
+
+  const attendanceMode =
     localStorage.getItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    ) ||
-    "";
+      PORTAL_CONFIG.attendanceModeKey
+    );
+
+  const portalMode =
+    localStorage.getItem(
+      PORTAL_CONFIG.modeKey
+    );
+
+  const estaEnModoAsistencia =
+    attendanceMode === "active" ||
+    portalMode === "asistencia";
 
   if (
-    asistenciaActiva &&
+    estaEnModoAsistencia &&
     asistenciaId
   ) {
+    /*
+      Pasamos explícitamente el ID de la asistencia.
+
+      Esto es especialmente importante en iPhone,
+      porque cada lectura puede provocar una nueva
+      navegación/carga de página.
+    */
+
+    const destino =
+      new URL(
+        "asistencia.html",
+        window.location.href
+      );
+
+    destino.searchParams.set(
+      "nfc",
+      codigo
+    );
+
+    destino.searchParams.set(
+      "asistenciaId",
+      asistenciaId
+    );
+
     window.location.replace(
-      `asistencia.html?nfc=${encodeURIComponent(
-        codigo
-      )}`
+      destino.toString()
     );
 
     return;
   }
 
   /*
-    Lectura normal:
-    SIEMPRE ficha médica.
+    =========================================================
+    LECTURA NORMAL
+    =========================================================
+
+    Si NO estamos pasando lista, cualquier lectura
+    recibida en index corresponde a ficha médica.
   */
+
   localStorage.removeItem(
     PORTAL_CONFIG.attendanceModeKey
+  );
+
+  localStorage.setItem(
+    PORTAL_CONFIG.modeKey,
+    "ficha_medica"
   );
 
   state.pendingNfcCode =
