@@ -335,15 +335,33 @@ async function restaurarModo() {
 
 async function restaurarSesion() {
   const token =
-    localStorage.getItem(
-      PORTAL_CONFIG.sessionTokenKey
-    ) ||
-    "";
+    String(
+      localStorage.getItem(
+        PORTAL_CONFIG.sessionTokenKey
+      ) ||
+      ""
+    ).trim();
+
+  /*
+    No existe sesión guardada.
+
+    Aquí sí mostramos login normalmente.
+  */
 
   if (!token) {
     mostrarLogin();
+
+    setState(
+      "loginEstado",
+      "Ingresa tus datos de acceso."
+    );
+
     return;
   }
+
+  /*
+    Existe sesión guardada.
+  */
 
   state.sessionToken =
     token;
@@ -365,9 +383,60 @@ async function restaurarSesion() {
     await restaurarModo();
 
     await procesarNfcPendiente();
-  } catch {
-    limpiarSesion();
+
+  } catch (error) {
+    console.error(
+      "[lector-pulseras] restaurarSesion",
+      error
+    );
+
+    /*
+      Solo si el servidor respondió 401
+      consideramos realmente inválida la sesión.
+
+      callApiSession() ya habrá limpiado
+      la sesión en ese caso.
+    */
+
+    if (
+      Number(error?.status) ===
+      401
+    ) {
+      state.sessionToken =
+        "";
+
+      state.activeGroup =
+        null;
+
+      mostrarLogin();
+
+      setState(
+        "loginEstado",
+        error.message ||
+        "La sesión guardada ya no es válida. Ingresa nuevamente.",
+        true
+      );
+
+      return;
+    }
+
+    /*
+      Error de red / servidor / conexión.
+
+      NO eliminamos la sesión guardada.
+    */
+
     mostrarLogin();
+
+    setState(
+      "loginEstado",
+      `Tu sesión sigue guardada, pero no fue posible comprobarla en este momento.${
+        error?.message
+          ? ` Detalle: ${error.message}`
+          : ""
+      }`,
+      true
+    );
   }
 }
 
@@ -1729,40 +1798,106 @@ async function callApiSession(
 ) {
   validateApiUrl();
 
-  const response =
-    await fetch(
-      PORTAL_CONFIG.apiUrl,
-      {
-        method:
-          "POST",
+  let response;
 
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
+  try {
+    response =
+      await fetch(
+        PORTAL_CONFIG.apiUrl,
+        {
+          method:
+            "POST",
 
-        body:
-          JSON.stringify({
-            accion,
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-            sessionToken:
-              state.sessionToken,
+          body:
+            JSON.stringify({
+              accion,
 
-            ...payload
-          })
-      }
-    );
+              sessionToken:
+                state.sessionToken,
+
+              ...payload
+            })
+        }
+      );
+
+  } catch (networkError) {
+    /*
+      Problema de conexión.
+
+      NO eliminamos la sesión.
+    */
+
+    const error =
+      new Error(
+        "No fue posible conectar con el servidor."
+      );
+
+    error.status =
+      0;
+
+    error.cause =
+      networkError;
+
+    throw error;
+  }
+
+  let responsePayload = {};
+
+  try {
+    responsePayload =
+      await response.json();
+  } catch {
+    responsePayload = {};
+  }
+
+  /*
+    401 confirmado por backend.
+
+    Aquí sí limpiamos la sesión porque el
+    servidor nos está diciendo expresamente
+    que el token ya no sirve.
+  */
 
   if (
     response.status ===
     401
   ) {
     limpiarSesion();
+
+    const error =
+      new Error(
+        responsePayload.error ||
+        "La sesión venció. Vuelve a ingresar."
+      );
+
+    error.status =
+      401;
+
+    throw error;
   }
 
-  return parseApiResponse(
-    response
-  );
+  if (
+    !response.ok ||
+    responsePayload.ok !== true
+  ) {
+    const error =
+      new Error(
+        responsePayload.error ||
+        `Error de consulta (${response.status})`
+      );
+
+    error.status =
+      response.status;
+
+    throw error;
+  }
+
+  return responsePayload;
 }
 
 async function parseApiResponse(
