@@ -50,6 +50,11 @@ async function init() {
 
   comprobarNfc();
 
+  /*
+    Esta página representa explícitamente
+    el modo PASAR LISTA.
+  */
+
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
     "asistencia"
@@ -59,6 +64,26 @@ async function init() {
     PORTAL_CONFIG.attendanceModeKey,
     "active"
   );
+
+  /*
+    En iPhone cada lectura NFC puede abrir
+    nuevamente la página.
+
+    Si index.html nos envió el ID de la
+    asistencia en la URL, lo recuperamos
+    inmediatamente.
+  */
+
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
+
+  const asistenciaIdUrl =
+    String(
+      params.get("asistenciaId") ||
+      ""
+    ).trim();
 
   const token =
     localStorage.getItem(
@@ -92,9 +117,26 @@ async function init() {
 
     await recuperarUbicacion();
 
-    await cargarOCrearAsistencia();
+    /*
+      IMPORTANTE:
+
+      Primero restauramos la asistencia.
+
+      Solo DESPUÉS procesamos la pulsera NFC
+      recibida desde el iPhone.
+    */
+
+    const asistenciaDisponible =
+      await cargarOCrearAsistencia(
+        asistenciaIdUrl
+      );
+
+    if (!asistenciaDisponible) {
+      return;
+    }
 
     await procesarNfcDesdeUrl();
+
   } catch (error) {
     console.error(
       "[asistencia] init",
@@ -234,25 +276,125 @@ function renderGrupo() {
     "Grupo activo";
 }
 
-async function cargarOCrearAsistencia() {
-  const asistenciaId =
-    localStorage.getItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    ) ||
-    "";
+async function cargarOCrearAsistencia(
+  asistenciaIdPreferida = ""
+) {
+  const asistenciaIdLocal =
+    String(
+      localStorage.getItem(
+        PORTAL_CONFIG.activeAttendanceKey
+      ) ||
+      ""
+    ).trim();
 
-  if (asistenciaId) {
+  const asistenciaIdUrl =
+    String(
+      asistenciaIdPreferida ||
+      ""
+    ).trim();
+
+  /*
+    =========================================================
+    1. PRIORIDAD: ASISTENCIA RECIBIDA DESDE EL NFC
+    =========================================================
+
+    En iPhone index.html incluye explícitamente
+    el ID de la asistencia en la URL.
+  */
+
+  if (asistenciaIdUrl) {
     const restaurada =
       await restaurarAsistencia(
-        asistenciaId
+        asistenciaIdUrl
       );
 
     if (restaurada) {
-      return;
+      /*
+        Volvemos a persistir el ID localmente
+        para reforzar la continuidad de las
+        siguientes lecturas.
+      */
+
+      localStorage.setItem(
+        PORTAL_CONFIG.activeAttendanceKey,
+        asistenciaIdUrl
+      );
+
+      localStorage.setItem(
+        PORTAL_CONFIG.attendanceModeKey,
+        "active"
+      );
+
+      localStorage.setItem(
+        PORTAL_CONFIG.modeKey,
+        "asistencia"
+      );
+
+      return true;
+    }
+
+    /*
+      Si la URL decía explícitamente que debíamos
+      utilizar una asistencia y ésta ya no existe
+      o no está ACTIVA, NO creamos silenciosamente
+      una asistencia nueva.
+
+      Eso evitaría que una lectura de iPhone
+      termine accidentalmente en otra lista.
+    */
+
+    setState(
+      "estadoLectura",
+      "La lista de asistencia asociada a esta lectura ya no está activa. Vuelve a iniciar Pasar Lista.",
+      true
+    );
+
+    return false;
+  }
+
+  /*
+    =========================================================
+    2. ASISTENCIA GUARDADA LOCALMENTE
+    =========================================================
+  */
+
+  if (asistenciaIdLocal) {
+    const restaurada =
+      await restaurarAsistencia(
+        asistenciaIdLocal
+      );
+
+    if (restaurada) {
+      localStorage.setItem(
+        PORTAL_CONFIG.attendanceModeKey,
+        "active"
+      );
+
+      localStorage.setItem(
+        PORTAL_CONFIG.modeKey,
+        "asistencia"
+      );
+
+      return true;
     }
   }
 
+  /*
+    =========================================================
+    3. NO HABÍA NINGUNA ASISTENCIA
+    =========================================================
+
+    Esto corresponde al ingreso normal al módulo
+    Pasar Lista.
+
+    Creamos una nueva asistencia.
+  */
+
   await crearNuevaAsistencia();
+
+  return Boolean(
+    state.asistencia?.id
+  );
 }
 
 async function crearNuevaAsistencia() {
@@ -292,9 +434,25 @@ async function crearNuevaAsistencia() {
     state.leidos =
       new Map();
 
+    /*
+      Dejamos sincronizadas todas las marcas
+      necesarias para que iPhone pueda volver
+      a esta misma lista con cada nueva lectura.
+    */
+
     localStorage.setItem(
       PORTAL_CONFIG.activeAttendanceKey,
       state.asistencia.id
+    );
+
+    localStorage.setItem(
+      PORTAL_CONFIG.attendanceModeKey,
+      "active"
+    );
+
+    localStorage.setItem(
+      PORTAL_CONFIG.modeKey,
+      "asistencia"
     );
 
     $("asistenciaPanel")
@@ -313,13 +471,23 @@ async function crearNuevaAsistencia() {
       false,
       true
     );
+
+    return true;
+
   } catch (error) {
+    console.error(
+      "[asistencia] crearNuevaAsistencia",
+      error
+    );
+
     setState(
       "estadoLectura",
       error.message ||
       "No fue posible crear la lista.",
       true
     );
+
+    return false;
   }
 }
 
@@ -896,6 +1064,33 @@ async function procesarNfcDesdeUrl() {
   if (!codigo) {
     return;
   }
+
+  /*
+    Nunca procesamos una lectura recibida
+    por URL si todavía no tenemos una
+    asistencia activa restaurada.
+  */
+
+  if (
+    !state.asistencia?.id ||
+    state.asistencia?.estado !== "ACTIVA"
+  ) {
+    setState(
+      "estadoLectura",
+      "No hay una lista de asistencia activa para registrar esta pulsera.",
+      true
+    );
+
+    return;
+  }
+
+  /*
+    Antes de registrar limpiamos la URL.
+
+    Así, si Safari recarga manualmente la página,
+    no vuelve a registrar accidentalmente el mismo
+    parámetro ?nfc=...
+  */
 
   const cleanUrl =
     `${window.location.origin}${window.location.pathname}`;
