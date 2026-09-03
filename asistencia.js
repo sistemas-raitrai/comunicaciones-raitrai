@@ -30,6 +30,19 @@ const state = {
   processing:
     false,
 
+  /*
+    Cola de lecturas NFC.
+
+    Esto permite que Android pueda seguir
+    capturando pulseras aunque la anterior
+    todavía esté viajando al servidor.
+  */
+  colaCodigos:
+    [],
+
+  procesandoCola:
+    false,
+
   ndef:
     null,
 
@@ -50,12 +63,6 @@ async function init() {
 
   comprobarNfc();
 
-  /*
-    =========================================================
-    ESTA PÁGINA REPRESENTA EL MODO ASISTENCIA
-    =========================================================
-  */
-
   localStorage.setItem(
     PORTAL_CONFIG.modeKey,
     "asistencia"
@@ -65,14 +72,6 @@ async function init() {
     PORTAL_CONFIG.attendanceModeKey,
     "active"
   );
-
-  /*
-    En iPhone cada lectura puede volver a abrir
-    la página desde una URL.
-
-    Recuperamos el ID de la asistencia si viene
-    explícitamente en la URL.
-  */
 
   const params =
     new URLSearchParams(
@@ -85,12 +84,6 @@ async function init() {
       ""
     ).trim();
 
-  /*
-    =========================================================
-    RECUPERAR SESIÓN GUARDADA
-    =========================================================
-  */
-
   const token =
     String(
       localStorage.getItem(
@@ -98,13 +91,6 @@ async function init() {
       ) ||
       ""
     ).trim();
-
-  /*
-    CASO REALMENTE SIN TOKEN.
-
-    Aquí sí podemos afirmar que este navegador
-    no encontró una sesión guardada.
-  */
 
   if (!token) {
     mostrarSinSesion(
@@ -118,11 +104,6 @@ async function init() {
     token;
 
   try {
-    /*
-      Validamos que el token guardado siga
-      siendo aceptado por el servidor.
-    */
-
     const response =
       await callApiSession(
         "estadoSesion",
@@ -146,13 +127,12 @@ async function init() {
       ?.classList
       .add("hidden");
 
-    await recuperarUbicacion();
-
     /*
-      Primero restauramos la lista.
+      IMPORTANTE:
 
-      Recién después procesamos la pulsera
-      recibida por URL.
+      NO esperamos ubicación aquí.
+
+      Primero dejamos operativa la asistencia.
     */
 
     const asistenciaDisponible =
@@ -164,21 +144,25 @@ async function init() {
       return;
     }
 
+    /*
+      Si iPhone abrió la página por NFC,
+      registramos primero la pulsera.
+    */
+
     await procesarNfcDesdeUrl();
+
+    /*
+      La ubicación se obtiene después,
+      en segundo plano.
+    */
+
+    void recuperarUbicacion();
 
   } catch (error) {
     console.error(
       "[asistencia] init",
       error
     );
-
-    /*
-      401 significa que el backend rechazó
-      explícitamente la sesión.
-
-      Eso es distinto a que el navegador
-      no tuviera token.
-    */
 
     if (
       Number(error?.status) ===
@@ -191,12 +175,6 @@ async function init() {
 
       return;
     }
-
-    /*
-      Si fue red, Cloud Function, timeout,
-      conexión, etc., NO decimos que la
-      sesión desapareció.
-    */
 
     mostrarSinSesion(
       `Existe una sesión guardada, pero no fue posible validarla en este momento.${
@@ -707,12 +685,29 @@ function renderAsistenciaIndividual() {
       0
     );
 
+  /*
+    No permitimos que un total viejo
+    devuelto por Firestore haga retroceder
+    el contador mostrado.
+  */
+
   const totalLeidos =
-    Number(
-      state.asistencia
-        ?.totalLeidos ??
-      state.leidos.size
+    Math.max(
+      state.leidos.size,
+
+      Number(
+        state.asistencia
+          ?.totalLeidos ||
+        0
+      )
     );
+
+  if (
+    state.asistencia
+  ) {
+    state.asistencia.totalLeidos =
+      totalLeidos;
+  }
 
   $("contadorPrincipal")
     .textContent =
@@ -752,7 +747,10 @@ function renderAsistenciaIndividual() {
     .innerHTML = `
       <div class="info-section">
         <h3>
-          Leídos (${presentes.length})
+          Leídos (${Math.max(
+            presentes.length,
+            totalLeidos
+          )})
         </h3>
 
         ${
@@ -794,7 +792,10 @@ function renderAsistenciaIndividual() {
 
       <div class="info-section">
         <h3>
-          Pendientes (${pendientes.length})
+          Pendientes (${Math.max(
+            0,
+            total - totalLeidos
+          )})
         </h3>
 
         ${
@@ -836,12 +837,82 @@ function renderAsistenciaIndividual() {
     `;
 }
 
+function encolarCodigoAsistencia(
+  codigoRaw
+) {
+  const codigo =
+    sanitizeCode(
+      codigoRaw
+    );
+
+  if (!codigo) {
+    return;
+  }
+
+  /*
+    Evitamos que el mismo evento NFC
+    se agregue varias veces seguidas
+    mientras la pulsera sigue apoyada.
+  */
+
+  const ultimoEnCola =
+    state.colaCodigos[
+      state.colaCodigos.length - 1
+    ];
+
+  if (
+    ultimoEnCola ===
+    codigo
+  ) {
+    return;
+  }
+
+  state.colaCodigos.push(
+    codigo
+  );
+
+  /*
+    No esperamos aquí.
+
+    Web NFC puede seguir capturando
+    nuevas pulseras inmediatamente.
+  */
+
+  void procesarColaAsistencia();
+}
+
+async function procesarColaAsistencia() {
+  if (
+    state.procesandoCola
+  ) {
+    return;
+  }
+
+  state.procesandoCola =
+    true;
+
+  try {
+    while (
+      state.colaCodigos.length
+    ) {
+      const codigo =
+        state.colaCodigos.shift();
+
+      await registrarCodigo(
+        codigo
+      );
+    }
+  } finally {
+    state.procesandoCola =
+      false;
+  }
+}
+
 async function registrarCodigo(
   codigoRaw
 ) {
   if (
-    !state.asistencia?.id ||
-    state.processing
+    !state.asistencia?.id
   ) {
     return;
   }
@@ -856,9 +927,10 @@ async function registrarCodigo(
   }
 
   /*
-    Evita múltiples eventos de lectura seguidos
-    mientras la pulsera sigue apoyada en el teléfono.
+    Evita rebote de la misma pulsera
+    mientras permanece físicamente apoyada.
   */
+
   const ahora =
     Date.now();
 
@@ -867,7 +939,7 @@ async function registrarCodigo(
       state.ultimoCodigo &&
     ahora -
       state.ultimaLecturaAt <
-      1500
+      1200
   ) {
     return;
   }
@@ -887,8 +959,20 @@ async function registrarCodigo(
   );
 
   try {
+    /*
+      =========================================================
+      CAMINO RÁPIDO
+      =========================================================
+
+      Ya NO pedimos una ubicación nueva antes
+      de registrar cada pulsera.
+
+      Usamos la última ubicación disponible.
+    */
+
     const ubicacion =
-      await obtenerUbicacionLectura();
+      state.ubicacion ||
+      null;
 
     const response =
       await callApiSession(
@@ -928,6 +1012,9 @@ async function registrarCodigo(
         ...state.asistencia,
         ...response.asistencia,
 
+        estado:
+          "ACTIVA",
+
         grupoRegistrado:
           true
       };
@@ -950,12 +1037,32 @@ async function registrarCodigo(
       return;
     }
 
+    /*
+      Cada pasajero ocupa una única
+      inscripción dentro del Map.
+    */
+
     if (
       response.inscripcionId
     ) {
       state.leidos.set(
         response.inscripcionId,
-        response
+        {
+          inscripcionId:
+            response.inscripcionId,
+
+          nombreCompleto:
+            response.nombrePasajero ||
+            "",
+
+          documento:
+            response.documento ||
+            "",
+
+          codigo,
+
+          ...response
+        }
       );
     }
 
@@ -964,8 +1071,29 @@ async function registrarCodigo(
     ) {
       state.asistencia = {
         ...state.asistencia,
-        ...response.asistencia
+        ...response.asistencia,
+
+        estado:
+          "ACTIVA"
       };
+    }
+
+    /*
+      Evitamos que un contador antiguo
+      vuelva a bajar el número visible.
+    */
+
+    if (
+      state.asistencia
+    ) {
+      state.asistencia.totalLeidos =
+        Math.max(
+          Number(
+            state.asistencia.totalLeidos ||
+            0
+          ),
+          state.leidos.size
+        );
     }
 
     renderAsistencia();
@@ -982,6 +1110,14 @@ async function registrarCodigo(
     navigator.vibrate?.(
       [100, 60, 100]
     );
+
+    /*
+      La ubicación se refresca después,
+      sin frenar esta lectura.
+    */
+
+    void recuperarUbicacion();
+
   } catch (error) {
     setState(
       "estadoLectura",
@@ -993,6 +1129,7 @@ async function registrarCodigo(
     navigator.vibrate?.(
       [250, 100, 250]
     );
+
   } finally {
     state.processing =
       false;
@@ -1006,12 +1143,19 @@ async function iniciarLecturaContinua() {
     return;
   }
 
+  /*
+    iPhone no tiene el mismo Web NFC continuo.
+
+    En iPhone:
+    pulsera → notificación → tocar enlace.
+  */
+
   if (
     !("NDEFReader" in window)
   ) {
     setState(
       "estadoLectura",
-      "En iPhone acerca la pulsera a la parte superior del teléfono y toca la notificación NFC.",
+      "En iPhone acerca cada pulsera a la parte superior del teléfono y toca la notificación NFC.",
       false,
       true
     );
@@ -1034,6 +1178,13 @@ async function iniciarLecturaContinua() {
     state.reading =
       true;
 
+    /*
+      Partimos con una cola limpia.
+    */
+
+    state.colaCodigos =
+      [];
+
     $("btnIniciarLectura")
       ?.classList
       .add("hidden");
@@ -1044,14 +1195,14 @@ async function iniciarLecturaContinua() {
 
     setState(
       "estadoLectura",
-      "Lectura activa. Acerca las pulseras una tras otra.",
+      "Lectura continua activa. Acerca las pulseras una tras otra.",
       false,
       true
     );
 
     state.ndef.addEventListener(
       "reading",
-      async (event) => {
+      (event) => {
         const codigo =
           extractNfcCode(
             event.message
@@ -1067,7 +1218,20 @@ async function iniciarLecturaContinua() {
           return;
         }
 
-        await registrarCodigo(
+        /*
+          MUY IMPORTANTE:
+
+          No hacemos:
+
+          await registrarCodigo(...)
+
+          La lectura siguiente queda libre
+          inmediatamente.
+
+          El servidor se procesa por cola.
+        */
+
+        encolarCodigoAsistencia(
           codigo
         );
       },
@@ -1091,6 +1255,7 @@ async function iniciarLecturaContinua() {
           state.controller.signal
       }
     );
+
   } catch (error) {
     state.reading =
       false;
