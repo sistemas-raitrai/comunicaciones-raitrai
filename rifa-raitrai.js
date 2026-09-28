@@ -51,7 +51,7 @@
 */
 
 const API_URL =
-  "PEGAR_URL_CLOUD_FUNCTION_RIFA_AQUI";
+  "https://southamerica-west1-sist-op-rt.cloudfunctions.net/rifaRaiTraiPublica";
 
 const $ = (id) =>
   document.getElementById(id);
