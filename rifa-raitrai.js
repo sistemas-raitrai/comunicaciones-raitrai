@@ -795,31 +795,185 @@ function validarFormulario() {
 }
 
 function actualizarResumen() {
+  const contenedor =
+    $("resumenReserva");
+
   const contacto =
     obtenerContacto();
 
   const adicionales =
     obtenerAsistentesAdicionales();
 
-  const total =
-    adicionales.length +
-    (contacto.asiste ? 1 : 0);
+  const personas = [];
+
+  if (contacto.asiste) {
+    personas.push(contacto);
+  }
+
+  personas.push(...adicionales);
+
+  contenedor.replaceChildren();
+
+  function agregarDato(
+    etiqueta,
+    valor
+  ) {
+    const fila =
+      document.createElement("div");
+
+    fila.className =
+      "resumen-dato";
+
+    const titulo =
+      document.createElement("span");
+
+    titulo.className =
+      "resumen-etiqueta";
+
+    titulo.textContent =
+      etiqueta;
+
+    const contenido =
+      document.createElement("strong");
+
+    contenido.textContent =
+      valor;
+
+    fila.append(
+      titulo,
+      contenido
+    );
+
+    contenedor.appendChild(
+      fila
+    );
+  }
 
   const grupo =
-    state.grupoSeleccionado
-      ? etiquetaGrupo(
-          state.grupoSeleccionado
-        )
-      : "Aún no seleccionado";
+    state.grupoSeleccionado;
 
-  $("resumenReserva").textContent =
-    `Grupo: ${grupo}. ` +
-    `Personas que asistirán: ${total}. ` +
-    (
-      contacto.asiste
-        ? "Quien realiza la reserva también asistirá."
-        : "Quien realiza la reserva quedará solo como contacto."
+  agregarDato(
+    "Grupo",
+    grupo
+      ? `${grupo.colegio} · ${grupo.curso} · ${grupo.anoViaje}`
+      : "Selecciona tu grupo"
+  );
+
+  agregarDato(
+    "ID del grupo",
+    grupo
+      ? grupo.idGrupo
+      : "—"
+  );
+
+  agregarDato(
+    "Personas que asistirán",
+    String(
+      personas.length
+    )
+  );
+
+  const separador =
+    document.createElement("div");
+
+  separador.className =
+    "resumen-separador";
+
+  contenedor.appendChild(
+    separador
+  );
+
+  personas.forEach(
+    (persona, indice) => {
+      const fila =
+        document.createElement("div");
+
+      fila.className =
+        "resumen-persona";
+
+      const numero =
+        document.createElement("span");
+
+      numero.className =
+        "resumen-persona-numero";
+
+      numero.textContent =
+        String(
+          indice + 1
+        );
+
+      const datos =
+        document.createElement("div");
+
+      const nombre =
+        document.createElement("strong");
+
+      nombre.className =
+        "resumen-persona-nombre";
+
+      const nombreCompleto =
+        [
+          persona.nombres,
+          persona.apellidos
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+      nombre.textContent =
+        nombreCompleto ||
+        "Nombre pendiente";
+
+      const relacion =
+        document.createElement("span");
+
+      relacion.className =
+        "resumen-persona-relacion";
+
+      relacion.textContent =
+        persona.relacion === "otro"
+          ? (
+              persona.otraRelacion ||
+              "Relación pendiente"
+            )
+          : (
+              RELACIONES[
+                persona.relacion
+              ] ||
+              "Relación pendiente"
+            );
+
+      datos.append(
+        nombre,
+        relacion
+      );
+
+      fila.append(
+        numero,
+        datos
+      );
+
+      contenedor.appendChild(
+        fila
+      );
+    }
+  );
+
+  if (
+    !contacto.asiste
+  ) {
+    const nota =
+      document.createElement("p");
+
+    nota.className =
+      "resumen-nota";
+
+    nota.textContent =
+      "Quien realiza la reserva quedará solo como contacto y no se cuenta como asistente.";
+
+    contenedor.appendChild(
+      nota
     );
+  }
 }
 
 async function confirmarReserva(evento) {
