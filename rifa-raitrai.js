@@ -118,6 +118,35 @@ function iniciar() {
     reiniciarFormulario
   );
 
+  $("btnAgregarCalendario").addEventListener(
+    "click",
+    () => {
+      const opciones =
+        $("opcionesCalendario");
+
+      const seAbrira =
+        opciones.classList.contains(
+          "hidden"
+        );
+
+      opciones.classList.toggle(
+        "hidden",
+        !seAbrira
+      );
+
+      $("btnAgregarCalendario")
+        .setAttribute(
+          "aria-expanded",
+          String(seAbrira)
+        );
+    }
+  );
+
+  $("btnDescargarCalendario").addEventListener(
+    "click",
+    descargarEventoCalendario
+  );
+
   cargarGrupos();
 }
 
@@ -1042,60 +1071,138 @@ function mostrarConfirmacion(
   datos,
   respuesta
 ) {
-  const totalLocal =
-    datos.asistentesAdicionales
-      .length +
-    (
+  const grupo =
+    state.grupoSeleccionado;
+
+  const asistentes = [
+    ...(
       datos.contacto.asiste
-        ? 1
-        : 0
-    );
+        ? [datos.contacto]
+        : []
+    ),
+    ...datos.asistentesAdicionales
+  ];
 
   const total =
     Number.isInteger(
       respuesta.totalAsistentes
     )
       ? respuesta.totalAsistentes
-      : totalLocal;
+      : asistentes.length;
 
   const detalle =
     $("confirmacionDetalle");
 
   detalle.replaceChildren();
 
-  const grupo =
+  const nombreGrupo =
+    document.createElement("h3");
+
+  nombreGrupo.className =
+    "confirmacion-grupo";
+
+  nombreGrupo.textContent =
+    `${grupo.colegio} · ${grupo.curso}`;
+
+  const idGrupo =
     document.createElement("p");
 
-  grupo.textContent =
-    `Grupo: ${etiquetaGrupo(
-      state.grupoSeleccionado
-    )}`;
+  idGrupo.className =
+    "confirmacion-id";
 
-  const cupos =
+  idGrupo.textContent =
+    `ID del grupo: ${grupo.idGrupo}`;
+
+  const encabezadoPersonas =
     document.createElement("p");
 
-  cupos.textContent =
+  encabezadoPersonas.className =
+    "confirmacion-total";
+
+  encabezadoPersonas.textContent =
     total === 1
-      ? "Confirmaste 1 persona."
-      : `Confirmaste ${total} personas.`;
+      ? "1 persona asistirá"
+      : `${total} personas asistirán`;
 
-  const codigo =
-    document.createElement("p");
+  const lista =
+    document.createElement("ol");
 
-  codigo.textContent =
-    `Número de reserva: ${respuesta.reservaId}`;
+  lista.className =
+    "confirmacion-personas";
+
+  for (
+    const persona of asistentes
+  ) {
+    const elemento =
+      document.createElement("li");
+
+    const nombre =
+      document.createElement("strong");
+
+    nombre.textContent =
+      [
+        persona.nombres,
+        persona.apellidos
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+    const relacion =
+      document.createElement("span");
+
+    relacion.textContent =
+      persona.relacion === "otro"
+        ? persona.otraRelacion
+        : (
+            RELACIONES[
+              persona.relacion
+            ] ||
+            persona.relacion
+          );
+
+    elemento.append(
+      nombre,
+      document.createTextNode(
+        " · "
+      ),
+      relacion
+    );
+
+    lista.appendChild(
+      elemento
+    );
+  }
 
   detalle.append(
-    grupo,
-    cupos,
-    codigo
+    nombreGrupo,
+    idGrupo,
+    encabezadoPersonas,
+    lista
   );
+
+  configurarCompartirYCalendario({
+      grupo,
+      asistentes,
+      reservaId: respuesta.reservaId
+    });
+  
+  $("encabezadoInvitacion")
+    .classList.add("hidden");
 
   $("reservaForm")
     .classList.add("hidden");
 
   $("confirmacionPanel")
     .classList.remove("hidden");
+
+  $("opcionesCalendario")
+    .classList.add("hidden");
+
+  $("btnAgregarCalendario")
+    .setAttribute(
+      "aria-expanded",
+      "false"
+    );
 
   window.scrollTo({
     top: 0,
@@ -1104,6 +1211,228 @@ function mostrarConfirmacion(
 
   $("confirmacionPanel")
     .focus();
+}
+
+const EVENTO_RIFA = {
+  titulo: "Sorteo Rifa Rai Trai 2026",
+  lugar:
+    "Salón VIP del Club Providencia, Av. Pocuro 2878, Providencia",
+
+  maps:
+    "https://www.google.com/maps/search/?api=1&query=Club%20Providencia%2C%20Av.%20Pocuro%202878%2C%20Providencia",
+
+  /*
+    Hora de Chile para el 17 de octubre de 2026.
+    El término a las 11:00 es provisional.
+  */
+  inicioGoogle:
+    "20261017T100000",
+
+  terminoGoogle: "20261017T140000",
+
+  inicioUTC:
+    "20261017T130000Z",
+
+  terminoUTC: "20261017T170000Z"
+};
+
+let datosCalendarioRifa = null;
+
+function nombreCompletoRifa(
+  persona
+) {
+  return [
+    persona.nombres,
+    persona.apellidos
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function configurarCompartirYCalendario({
+  grupo,
+  asistentes,
+  reservaId
+}) {
+  const nombres =
+    asistentes.map(
+      (persona, indice) => {
+        const relacion =
+          persona.relacion === "otro"
+            ? persona.otraRelacion
+            : (
+                RELACIONES[
+                  persona.relacion
+                ] ||
+                persona.relacion
+              );
+
+        return (
+          `${indice + 1}. ` +
+          `${nombreCompletoRifa(persona)} ` +
+          `(${relacion})`
+        );
+      }
+    );
+
+  const mensajeWhatsApp = [
+    "🎉 Reserva confirmada · Rifa Rai Trai 2026",
+    "",
+    `Grupo: ${grupo.colegio} · ${grupo.curso}`,
+    `ID del grupo: ${grupo.idGrupo}`,
+    `Asistirán: ${asistentes.length}`,
+    ...nombres,
+    "",
+    "📅 Sábado 17 de octubre de 2026 · 10:00 h",
+    "📍 Salón VIP del Club Providencia",
+    "Av. Pocuro 2878, Providencia",
+    EVENTO_RIFA.maps
+  ].join("\n");
+
+  $("btnCompartirWhatsApp").href =
+    `https://wa.me/?text=${
+      encodeURIComponent(
+        mensajeWhatsApp
+      )
+    }`;
+
+  const descripcionCalendario = [
+    `Grupo: ${grupo.colegio} · ${grupo.curso}`,
+    `ID del grupo: ${grupo.idGrupo}`,
+    `Asistentes: ${asistentes.length}`,
+    ...nombres,
+    "",
+    "Estacionamientos limitados.",
+    EVENTO_RIFA.maps
+  ].join("\n");
+
+  const parametros =
+    new URLSearchParams({
+      action: "TEMPLATE",
+      text: EVENTO_RIFA.titulo,
+
+      dates:
+        `${EVENTO_RIFA.inicioGoogle}` +
+        "/" +
+        `${EVENTO_RIFA.terminoGoogle}`,
+
+      ctz:
+        "America/Santiago",
+
+      details:
+        descripcionCalendario,
+
+      location:
+        EVENTO_RIFA.lugar
+    });
+
+  $("btnGoogleCalendar").href =
+    `https://calendar.google.com/calendar/render?${parametros.toString()}`;
+
+  datosCalendarioRifa = {
+    grupo,
+    reservaId,
+    descripcion: descripcionCalendario
+  };
+}
+
+function escaparTextoICS(
+  valor
+) {
+  return String(valor)
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function descargarEventoCalendario() {
+  if (
+    !datosCalendarioRifa
+  ) {
+    return;
+  }
+
+  const {
+    grupo,
+    reservaId,
+    descripcion
+  } = datosCalendarioRifa;
+
+  const ahora =
+    new Date()
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "");
+
+  const lineas = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Rai Trai//Rifa 2026//ES",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+
+    `UID:rifa-raitrai-2026-${reservaId}@raitrai.cl`,
+
+    `DTSTAMP:${ahora}`,
+
+    `DTSTART:${EVENTO_RIFA.inicioUTC}`,
+    `DTEND:${EVENTO_RIFA.terminoUTC}`,
+
+    `SUMMARY:${escaparTextoICS(
+      EVENTO_RIFA.titulo
+    )}`,
+
+    `LOCATION:${escaparTextoICS(
+      EVENTO_RIFA.lugar
+    )}`,
+
+    `DESCRIPTION:${escaparTextoICS(
+      descripcion
+    )}`,
+
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ];
+
+  const archivo =
+    new Blob(
+      [
+        lineas.join("\r\n") +
+        "\r\n"
+      ],
+      {
+        type:
+          "text/calendar;charset=utf-8"
+      }
+    );
+
+  const url =
+    URL.createObjectURL(
+      archivo
+    );
+
+  const enlace =
+    document.createElement("a");
+
+  enlace.href =
+    url;
+
+  enlace.download =
+    `rifa-raitrai-2026-${grupo.idGrupo}.ics`;
+
+  document.body.appendChild(
+    enlace
+  );
+
+  enlace.click();
+  enlace.remove();
+
+  setTimeout(
+    () => URL.revokeObjectURL(url),
+    60000
+  );
 }
 
 function mostrarEstado(
@@ -1146,10 +1475,25 @@ function reiniciarFormulario() {
   $("confirmacionPanel")
     .classList.add("hidden");
 
+  $("encabezadoInvitacion")
+    .classList.remove("hidden");
+
+  $("opcionesCalendario")
+    .classList.add("hidden");
+
+  $("btnAgregarCalendario")
+    .setAttribute(
+      "aria-expanded",
+      "false"
+    );
+
   $("reservaForm")
     .classList.remove("hidden");
 
   state.grupoSeleccionado =
+    null;
+
+  datosCalendarioRifa =
     null;
 
   actualizarOtraRelacionContacto();
