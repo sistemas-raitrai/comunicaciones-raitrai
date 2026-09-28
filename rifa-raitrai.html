@@ -369,12 +369,170 @@
         text-align: left;
       }
     }
+    .confirmacion {
+      padding: 28px;
+    }
+    
+    .confirmacion-icono {
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      background: #e8f6ec;
+      color: #177742;
+      font-size: 1.8rem;
+      font-weight: 800;
+    }
+    
+    .confirmacion h2 {
+      margin-bottom: 8px;
+      font-size: clamp(1.45rem, 4vw, 1.85rem);
+      line-height: 1.2;
+    }
+    
+    .confirmacion-intro {
+      margin-bottom: 22px;
+      color: #655b70;
+      line-height: 1.45;
+    }
+    
+    .confirmacion-reserva,
+    .confirmacion-evento {
+      padding: 18px;
+      border-radius: 15px;
+    }
+    
+    .confirmacion-reserva {
+      background: #f5eff9;
+      border: 1px solid #e7ddec;
+    }
+    
+    .confirmacion-grupo {
+      margin: 0 0 4px;
+      font-size: 1.08rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    
+    .confirmacion-id {
+      margin: 0;
+      color: #655b70;
+      font-size: .9rem;
+    }
+    
+    .confirmacion-total {
+      margin: 18px 0 8px;
+      font-weight: 700;
+    }
+    
+    .confirmacion-personas {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding-left: 22px;
+    }
+    
+    .confirmacion-personas li {
+      padding-left: 3px;
+      line-height: 1.45;
+    }
+    
+    .confirmacion-personas strong {
+      overflow-wrap: anywhere;
+    }
+    
+    .confirmacion-personas span {
+      color: #655b70;
+    }
+    
+    .confirmacion-evento {
+      display: grid;
+      gap: 17px;
+      margin-top: 14px;
+      background: #faf8fc;
+      border: 1px solid #eee8f2;
+    }
+    
+    .confirmacion-evento-fila {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      line-height: 1.4;
+    }
+    
+    .confirmacion-evento-fila > span {
+      flex: 0 0 22px;
+      font-size: 1.15rem;
+    }
+    
+    .confirmacion-evento-fila strong,
+    .confirmacion-evento-fila div span {
+      display: block;
+    }
+    
+    .confirmacion-evento-fila div span {
+      margin-top: 3px;
+      color: #655b70;
+    }
+    
+    .confirmacion-estacionamiento {
+      display: flex;
+      gap: 9px;
+      margin: 17px 2px 20px;
+      color: #655b70;
+      font-size: .92rem;
+      line-height: 1.4;
+    }
+    
+    .confirmacion-acciones,
+    .opciones-calendario {
+      display: grid;
+      gap: 10px;
+    }
+    
+    .confirmacion-acciones .button,
+    .opciones-calendario .button {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      min-height: 50px;
+      margin: 0;
+      line-height: 1.25;
+    }
+    
+    .button-whatsapp {
+      background: #187948;
+      border-color: #187948;
+    }
+    
+    .button-whatsapp:hover {
+      background: #12643a;
+    }
+    
+    .opciones-calendario {
+      padding: 12px;
+      border-radius: 12px;
+      background: #f5eff9;
+    }
+    
+    @media (max-width: 560px) {
+      .confirmacion {
+        padding: 21px 18px;
+      }
+    
+      .confirmacion-reserva,
+      .confirmacion-evento {
+        padding: 15px;
+      }
+    }
   </style>
 </head>
 
 <body>
   <main class="page">
-    <header class="card">
+    <header id="encabezadoInvitacion" class="card">
       <div class="brand">
         <div class="logo" aria-hidden="true">RT</div>
 
@@ -583,37 +741,98 @@
 
     <section
       id="confirmacionPanel"
-      class="card hidden"
+      class="card confirmacion hidden"
       tabindex="-1"
     >
-      <h2>¡Listo! Tu reserva quedó registrada 🎉</h2>
-
-      <div id="confirmacionDetalle"></div>
-
-      <p>
-        📅 Sábado 17 de octubre de 2026<br>
-        🕙 10:00 horas<br>
-        📍 Salón VIP del Club Providencia<br>
-        Av. Pocuro 2878, Providencia
+      <div class="confirmacion-icono" aria-hidden="true">✓</div>
+    
+      <h2>¡Listo! Tu asistencia quedó registrada</h2>
+    
+      <p class="confirmacion-intro">
+        Te esperamos en el sorteo de la Rifa Rai Trai 2026.
       </p>
-
-      <p class="muted">
-        Puedes llegar en auto, pero los estacionamientos del recinto
-        son limitados y están sujetos a disponibilidad. Considera
-        tiempo para buscar estacionamiento en los alrededores
-        o llegar en transporte público.
+    
+      <div
+        id="confirmacionDetalle"
+        class="confirmacion-reserva"
+      ></div>
+    
+      <div class="confirmacion-evento">
+        <div class="confirmacion-evento-fila">
+          <span aria-hidden="true">📅</span>
+          <div>
+            <strong>Sábado 17 de octubre de 2026</strong>
+            <span>10:00 horas</span>
+          </div>
+        </div>
+    
+        <div class="confirmacion-evento-fila">
+          <span aria-hidden="true">📍</span>
+          <div>
+            <strong>Salón VIP del Club Providencia</strong>
+            <span>Av. Pocuro 2878, Providencia</span>
+          </div>
+        </div>
+      </div>
+    
+      <p class="confirmacion-estacionamiento">
+        <span aria-hidden="true">🚗</span>
+        Estacionamientos limitados. Considera tiempo para encontrar uno.
       </p>
-
-      <a
-        class="button"
-        href="https://www.google.com/maps/search/?api=1&amp;query=Club%20Providencia%2C%20Av.%20Pocuro%202878%2C%20Providencia"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Cómo llegar en Google Maps
-      </a>
-
-      <div class="actions">
+    
+      <div class="confirmacion-acciones">
+        <a
+          id="btnCompartirWhatsApp"
+          class="button button-whatsapp"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Compartir por WhatsApp
+        </a>
+    
+        <button
+          id="btnAgregarCalendario"
+          class="button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="opcionesCalendario"
+        >
+          Agregar al calendario
+        </button>
+    
+        <div
+          id="opcionesCalendario"
+          class="opciones-calendario hidden"
+        >
+          <a
+            id="btnGoogleCalendar"
+            class="button secondary"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Google Calendar
+          </a>
+    
+          <button
+            id="btnDescargarCalendario"
+            class="button secondary"
+            type="button"
+          >
+            iPhone / Apple Calendar y otros
+          </button>
+        </div>
+    
+        <a
+          class="button secondary"
+          href="https://www.google.com/maps/search/?api=1&amp;query=Club%20Providencia%2C%20Av.%20Pocuro%202878%2C%20Providencia"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Cómo llegar
+        </a>
+    
         <button
           id="btnNuevaReserva"
           class="button secondary"
