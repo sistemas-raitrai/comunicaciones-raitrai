@@ -609,3 +609,182 @@ button {
     transform: rotate(360deg);
   }
 }
+
+/* =========================================================
+   PALETA RAI TRAI
+   Compartida por lector-pulseras.html y asistencia.html
+========================================================= */
+
+:root {
+  --rt-primary: #202957;
+  --rt-primary-dark: #151c40;
+  --rt-primary-medium: #566da8;
+  --rt-primary-light: #e9eef9;
+  --rt-yellow: #f4c400;
+  --rt-background: #f4f6fb;
+  --rt-border: #d5dbea;
+  --rt-muted: #667085;
+
+  background: var(--rt-background);
+  color: var(--rt-primary-dark);
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 50% -10%,
+      #fff 0,
+      #f7f9fd 35%,
+      var(--rt-background) 100%
+    );
+}
+
+.brand-card,
+.portal-card {
+  border-color: var(--rt-border);
+  box-shadow:
+    0 14px 38px
+    rgb(32 41 87 / 8%);
+}
+
+.brand-logo {
+  background: var(--rt-primary);
+  color: #fff;
+}
+
+.brand-card h1,
+.portal-card h2,
+.person-header h3,
+.info-section h3,
+.result-code,
+.data-card strong {
+  color: var(--rt-primary);
+}
+
+.brand-card p,
+.section-step,
+.section-copy,
+.field-label,
+.portal-state,
+.selected-group p,
+.person-header p,
+.data-card span,
+.group-result span,
+.passenger-row span,
+.empty-box,
+.portal-footer {
+  color: var(--rt-muted);
+}
+
+.portal-input {
+  border-color: #bcc6d9;
+  color: var(--rt-primary-dark);
+}
+
+.portal-input:focus {
+  border-color: var(--rt-primary-medium);
+  box-shadow:
+    0 0 0 4px
+    rgb(86 109 168 / 16%);
+}
+
+.portal-button.primary {
+  background: var(--rt-primary);
+}
+
+.portal-button.primary:hover {
+  background: var(--rt-primary-dark);
+}
+
+.portal-button.secondary {
+  background: var(--rt-primary-medium);
+}
+
+.portal-button.secondary:hover {
+  background: var(--rt-primary);
+}
+
+/* El verde identifica específicamente la lectura NFC. */
+.portal-button.scan {
+  background: #166534;
+}
+
+.portal-button.scan:hover {
+  background: #14532d;
+}
+
+.portal-button:focus-visible,
+.text-button:focus-visible,
+.group-result:focus-visible,
+.passenger-row:focus-visible {
+  outline: 3px solid var(--rt-yellow);
+  outline-offset: 3px;
+}
+
+.groups-list,
+.passenger-list,
+.manual-box,
+.info-section,
+.data-card {
+  border-color: var(--rt-border);
+}
+
+.group-result,
+.passenger-row {
+  border-bottom-color: var(--rt-border);
+  color: var(--rt-primary-dark);
+}
+
+.group-result:hover,
+.group-result:focus,
+.passenger-row:hover,
+.passenger-row:focus {
+  background: var(--rt-primary-light);
+}
+
+.group-result em,
+.passenger-row em,
+.text-button {
+  color: var(--rt-primary);
+}
+
+.separator {
+  background: var(--rt-border);
+}
+
+.manual-box {
+  background: #f8faff;
+}
+
+.person-header,
+.empty-box {
+  background: var(--rt-primary-light);
+}
+
+.status-pill {
+  background: var(--rt-primary-light);
+  color: var(--rt-primary);
+}
+
+.info-section {
+  background: #fff;
+}
+
+.info-section.medical {
+  border-color: #ead9b3;
+  background: #fffaf0;
+}
+
+.info-section.medical h3 {
+  color: #503c1d;
+}
+
+.data-card {
+  background: #f8faff;
+}
+
+.loading-spinner {
+  border-color: var(--rt-border);
+  border-top-color: var(--rt-primary);
+}
+
