@@ -351,7 +351,7 @@ function manejarBusquedaGrupo() {
 
   if (!busqueda) {
     resultados.textContent =
-      "Escribe el ID, colegio o curso para buscar.";
+      "";
 
     input.setAttribute(
       "aria-expanded",
