@@ -788,3 +788,28 @@ body {
   border-top-color: var(--rt-primary);
 }
 
+.brand-logo:has(img) {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--rt-border);
+}
+
+.brand-logo img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.brand-logo-image {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--rt-border);
+}
+
+.brand-logo-image img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
