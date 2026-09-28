@@ -147,7 +147,29 @@ function iniciar() {
     descargarEventoCalendario
   );
 
+  $("btnIniciarReserva").addEventListener(
+    "click",
+    iniciarReserva
+  );
+
   cargarGrupos();
+}
+
+function iniciarReserva() {
+  $("encabezadoInvitacion")
+    .classList.add("hidden");
+
+  $("reservaForm")
+    .classList.remove("hidden");
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+
+  $("grupoBusqueda").focus({
+    preventScroll: true
+  });
 }
 
 async function solicitarApi(datos) {
@@ -1475,6 +1497,9 @@ function reiniciarFormulario() {
   $("confirmacionPanel")
     .classList.add("hidden");
 
+  $("reservaForm")
+    .classList.add("hidden");
+
   $("encabezadoInvitacion")
     .classList.remove("hidden");
 
@@ -1486,9 +1511,6 @@ function reiniciarFormulario() {
       "aria-expanded",
       "false"
     );
-
-  $("reservaForm")
-    .classList.remove("hidden");
 
   state.grupoSeleccionado =
     null;
@@ -1505,5 +1527,7 @@ function reiniciarFormulario() {
     behavior: "smooth"
   });
 
-  $("grupoBusqueda").focus();
+  $("btnIniciarReserva").focus({
+    preventScroll: true
+  });
 }
