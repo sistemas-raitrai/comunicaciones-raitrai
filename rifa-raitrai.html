@@ -288,6 +288,87 @@
         width: 100%;
       }
     }
+    #resumenReserva {
+      background: #f7f3fa;
+      border: 1px solid #e7ddec;
+      padding: 18px;
+    }
+    
+    .resumen-dato {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 16px;
+      align-items: baseline;
+      padding: 8px 0;
+    }
+    
+    .resumen-etiqueta {
+      color: #655b70;
+    }
+    
+    .resumen-dato strong {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+    
+    .resumen-separador {
+      height: 1px;
+      margin: 14px 0 5px;
+      background: #dfd3e7;
+    }
+    
+    .resumen-persona {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 0;
+    }
+    
+    .resumen-persona + .resumen-persona {
+      border-top: 1px solid #e7ddec;
+    }
+    
+    .resumen-persona-numero {
+      display: grid;
+      place-items: center;
+      flex: 0 0 28px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #2b1940;
+      color: #fff;
+      font-size: .85rem;
+      font-weight: 700;
+    }
+    
+    .resumen-persona-nombre,
+    .resumen-persona-relacion {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+    
+    .resumen-persona-relacion {
+      margin-top: 3px;
+      color: #655b70;
+      font-size: .92rem;
+    }
+    
+    .resumen-nota {
+      margin: 12px 0 0;
+      color: #655b70;
+      font-size: .9rem;
+    }
+    
+    @media (max-width: 560px) {
+      .resumen-dato {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+    
+      .resumen-dato strong {
+        text-align: left;
+      }
+    }
   </style>
 </head>
 
