@@ -853,6 +853,14 @@
           id="grupoSeleccionado"
           class="selected-group hidden"
         ></div>
+
+        <div
+          id="avisoCupoGrupo"
+          class="notice hidden"
+          role="alert"
+          aria-live="polite"
+          style="white-space: pre-line; margin-top: 12px;"
+        ></div>  
       </section>
 
       <section class="card">
@@ -953,8 +961,8 @@
         </label>
       </section>
 
-      <section class="card">
-        <h2>3. Otras personas que asistirán</h2>
+      <section id="seccionAcompanantes" class="card hidden">
+        <h2>Otras personas que asistirán</h2>
 
         <p class="muted">
           Agrega a cada persona por separado. Si tú también asistirás,
@@ -973,7 +981,7 @@
       </section>
 
       <section class="card">
-        <h2>4. Revisa y confirma</h2>
+        <h2 id="tituloRevisarReserva">3. Revisa y confirma</h2>
 
         <div
           id="resumenReserva"
