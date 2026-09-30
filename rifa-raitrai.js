@@ -56,6 +56,21 @@ const API_URL =
 const $ = (id) =>
   document.getElementById(id);
 
+// Conservamos el código de acompañantes para habilitarlo después.
+const PERMITIR_ACOMPANANTES = false;
+
+const MENSAJE_CUPO_OCUPADO =
+  "⚠️ Este colegio ya cuenta con una inscripción registrada.\n\n" +
+  "Por cada colegio reservamos un (1) cupo para una persona representante " +
+  "y ya tenemos una persona registrada para este colegio.\n\n" +
+  "Si consideras que esto puede ser un error o que debería registrarse " +
+  "otra persona, por favor comunícate con la empresa directamente " +
+  "a través de tu ejecutivo/a de ventas.";
+
+let consultaCupoSecuencia = 0;
+let cupoConsultadoIdGrupo = null;
+let consultandoCupo = false;
+
 const state = {
   grupos: [],
   grupoSeleccionado: null,
@@ -75,6 +90,15 @@ const MAX_ASISTENTES_ADICIONALES = 20;
 iniciar();
 
 function iniciar() {
+  $("seccionAcompanantes").classList.toggle(
+    "hidden",
+    !PERMITIR_ACOMPANANTES
+  );
+
+  $("tituloRevisarReserva").textContent =
+    PERMITIR_ACOMPANANTES
+      ? "4. Revisa y confirma"
+      : "3. Revisa y confirma";
   $("grupoBusqueda").addEventListener(
     "input",
     manejarBusquedaGrupo
@@ -332,6 +356,7 @@ function manejarBusquedaGrupo() {
       )
   ) {
     state.grupoSeleccionado = null;
+    limpiarConsultaCupoGrupo();
     $("grupoSeleccionado")
       .classList.add("hidden");
   }
@@ -429,31 +454,113 @@ function etiquetaGrupo(grupo) {
   ].join(" · ");
 }
 
-function seleccionarGrupo(grupo) {
+async function seleccionarGrupo(grupo) {
+  const secuencia = ++consultaCupoSecuencia;
+
   state.grupoSeleccionado = grupo;
+  cupoConsultadoIdGrupo = null;
+  consultandoCupo = true;
 
-  $("grupoBusqueda").value =
-    etiquetaGrupo(grupo);
+  $("grupoBusqueda").value = etiquetaGrupo(grupo);
+  $("grupoResultados").replaceChildren();
+  $("grupoBusqueda").setAttribute("aria-expanded", "false");
 
-  $("grupoResultados")
-    .replaceChildren();
-
-  $("grupoBusqueda").setAttribute(
-    "aria-expanded",
-    "false"
-  );
-
-  const seleccionado =
-    $("grupoSeleccionado");
+  const seleccionado = $("grupoSeleccionado");
 
   seleccionado.textContent =
     `Grupo seleccionado: ${etiquetaGrupo(grupo)}`;
 
-  seleccionado.classList.remove(
-    "hidden"
+  seleccionado.classList.remove("hidden");
+
+  mostrarAvisoCupoGrupo(
+    "Consultando disponibilidad del cupo...",
+    false
   );
 
+  $("btnConfirmar").disabled = true;
   actualizarResumen();
+
+  try {
+    const respuesta = await solicitarApi({
+      accion: "consultarCupoRifa",
+      idGrupo: grupo.idGrupo
+    });
+
+    // Ignorar respuestas de una selección anterior.
+    if (
+      secuencia !== consultaCupoSecuencia ||
+      state.grupoSeleccionado?.idGrupo !== grupo.idGrupo
+    ) {
+      return;
+    }
+
+    if (typeof respuesta.disponible !== "boolean") {
+      throw new Error(
+        "No pudimos verificar la disponibilidad del grupo."
+      );
+    }
+
+    consultandoCupo = false;
+
+    if (!respuesta.disponible) {
+      cupoConsultadoIdGrupo = null;
+      $("btnConfirmar").disabled = true;
+
+      mostrarAvisoCupoGrupo(
+        MENSAJE_CUPO_OCUPADO,
+        true
+      );
+
+      return;
+    }
+
+    cupoConsultadoIdGrupo = grupo.idGrupo;
+
+    mostrarAvisoCupoGrupo("", false);
+    $("btnConfirmar").disabled = state.enviando;
+  } catch (error) {
+    if (
+      secuencia !== consultaCupoSecuencia ||
+      state.grupoSeleccionado?.idGrupo !== grupo.idGrupo
+    ) {
+      return;
+    }
+
+    consultandoCupo = false;
+    cupoConsultadoIdGrupo = null;
+    $("btnConfirmar").disabled = true;
+
+    mostrarAvisoCupoGrupo(
+      error.message ||
+        "No pudimos verificar el cupo. Selecciona nuevamente el grupo.",
+      true
+    );
+  }
+}
+
+function mostrarAvisoCupoGrupo(mensaje, esAdvertencia) {
+  const aviso = $("avisoCupoGrupo");
+
+  aviso.textContent = mensaje;
+  aviso.classList.toggle("hidden", !mensaje);
+
+  aviso.style.backgroundColor =
+    esAdvertencia ? "#fff7ed" : "";
+
+  aviso.style.borderColor =
+    esAdvertencia ? "#f59e0b" : "";
+
+  aviso.style.color =
+    esAdvertencia ? "#92400e" : "";
+}
+
+function limpiarConsultaCupoGrupo() {
+  consultaCupoSecuencia += 1;
+  cupoConsultadoIdGrupo = null;
+  consultandoCupo = false;
+
+  mostrarAvisoCupoGrupo("", false);
+  $("btnConfirmar").disabled = true;
 }
 
 function actualizarOtraRelacionContacto() {
@@ -475,6 +582,9 @@ function actualizarOtraRelacionContacto() {
 }
 
 function agregarAsistente() {
+  if (!PERMITIR_ACOMPANANTES) {
+    return;
+  }
   const contenedor =
     $("asistentesAdicionales");
 
@@ -662,6 +772,9 @@ function actualizarOtraRelacionAsistente(
 }
 
 function obtenerAsistentesAdicionales() {
+  if (!PERMITIR_ACOMPANANTES) {
+    return [];
+  }
   return Array.from(
     $("asistentesAdicionales")
       .querySelectorAll(".attendee")
@@ -716,8 +829,9 @@ function obtenerContacto() {
         : "",
 
     asiste:
-      !$("contactoNoAsiste")
-        .checked
+      PERMITIR_ACOMPANANTES
+        ? !$("contactoNoAsiste").checked
+        : true
   };
 }
 
@@ -747,6 +861,22 @@ function validarFormulario() {
 
     throw new Error(
       "Busca y selecciona un grupo de la lista."
+    );
+  }
+
+  if (consultandoCupo) {
+    throw new Error(
+      "Espera mientras verificamos la disponibilidad del grupo."
+    );
+  }
+
+  if (
+    cupoConsultadoIdGrupo !==
+    state.grupoSeleccionado.idGrupo
+  ) {
+    throw new Error(
+      $("avisoCupoGrupo").textContent ||
+        "Selecciona nuevamente el grupo para verificar su cupo."
     );
   }
 
@@ -1037,30 +1167,19 @@ async function confirmarReserva(evento) {
   let datos;
 
   try {
-    datos =
-      validarFormulario();
+    datos = validarFormulario();
   } catch (error) {
-    mostrarEstado(
-      error.message,
-      true
-    );
-
+    mostrarEstado(error.message, true);
     return;
   }
 
   state.enviando = true;
+  $("btnConfirmar").disabled = true;
 
-  $("btnConfirmar").disabled =
-    true;
-
-  mostrarEstado(
-    "Guardando tu reserva...",
-    false
-  );
+  mostrarEstado("Guardando tu reserva...", false);
 
   try {
-    const respuesta =
-      await solicitarApi(datos);
+    const respuesta = await solicitarApi(datos);
 
     if (
       respuesta?.ok !== true ||
@@ -1071,21 +1190,29 @@ async function confirmarReserva(evento) {
       );
     }
 
-    mostrarConfirmacion(
-      datos,
-      respuesta
-    );
+    mostrarConfirmacion(datos, respuesta);
   } catch (error) {
+    if (error.message === MENSAJE_CUPO_OCUPADO) {
+      cupoConsultadoIdGrupo = null;
+      mostrarAvisoCupoGrupo(
+        MENSAJE_CUPO_OCUPADO,
+        true
+      );
+    }
+
     mostrarEstado(
       error.message ||
-      "No pudimos guardar la reserva. Inténtalo nuevamente.",
+        "No pudimos guardar la reserva. Inténtalo nuevamente.",
       true
     );
   } finally {
     state.enviando = false;
 
     $("btnConfirmar").disabled =
-      false;
+      consultandoCupo ||
+      !state.grupoSeleccionado ||
+      cupoConsultadoIdGrupo !==
+        state.grupoSeleccionado.idGrupo;
   }
 }
 
@@ -1480,6 +1607,7 @@ function mostrarEstado(
 }
 
 function reiniciarFormulario() {
+  limpiarConsultaCupoGrupo();
   $("reservaForm").reset();
 
   $("asistentesAdicionales")
