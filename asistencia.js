@@ -64,28 +64,38 @@ async function init() {
     location.replace(new URL(location.pathname + location.search, canonical.origin).href);
     return;
   }
-  bindEvents();
-  comprobarNfc();
-  const token = localStorage.getItem(PORTAL_CONFIG.sessionTokenKey) || "";
-  if (!token) return mostrarSinSesion("Ingresa al grupo una vez desde este navegador.");
-  state.sessionToken = token;
-  localStorage.setItem(PORTAL_CONFIG.modeKey, "asistencia");
-  localStorage.setItem("raitrai_nfc_intencion_v2", "asistencia");
+  $("cargandoListaPanel")?.classList.remove("hidden");
+  $("asistenciaPanel")?.classList.add("hidden");
+  mostrarAvisoIphone();
+  let etapa = "preparar pantalla";
   try {
+    bindEvents();
+    prepararEventosAusencias();
+    comprobarNfc();
+    state.sessionToken = localStorage.getItem(PORTAL_CONFIG.sessionTokenKey) || "";
+    if (!state.sessionToken) return mostrarSinSesion("Ingresa al grupo desde este navegador en navegación normal.");
+    localStorage.setItem(PORTAL_CONFIG.modeKey, "asistencia");
+    localStorage.setItem("raitrai_nfc_intencion_v2", "asistencia");
+    etapa = "validar sesión";
     const response = await callApiSession("estadoSesion", {});
     state.activeGroup = response.grupo;
     localStorage.setItem(PORTAL_CONFIG.activeGroupKey, JSON.stringify(response.grupo));
     renderGrupo();
+    etapa = "consultar lista abierta";
+    await cargarOCrearAsistencia();
     $("sinSesionPanel")?.classList.add("hidden");
     $("asistenciaPanel")?.classList.remove("hidden");
-    $("finalizadaPanel")?.classList.add("hidden");
-    await cargarOCrearAsistencia();
+    etapa = "registrar pulsera";
     await procesarNfcDesdeUrl();
     void cargarHistorialAsistencias();
     iniciarSincronizacionCompartida();
   } catch (error) {
-    mostrarSinSesion(error.status === 401 ? error.message :
-      "Tu acceso sigue guardado. No fue posible conectar; vuelve a intentar cuando tengas conexión.");
+    console.error("[asistencia]", etapa, error);
+    $("sinSesionPanel")?.querySelector("h2") &&
+      ($("sinSesionPanel").querySelector("h2").textContent = "No fue posible cargar");
+    mostrarSinSesion(`${etapa} · ${error.status ? "HTTP " + error.status : "Sin código HTTP"}: ${error.message}`);
+  } finally {
+    $("cargandoListaPanel")?.classList.add("hidden");
   }
 }
 
@@ -109,10 +119,14 @@ function bindEvents() {
     );
 
   $("btnNuevaLista")?.addEventListener("click", () => {
-    mostrarPreparacionLista();
     $("finalizadaPanel")?.classList.add("hidden");
-    $("asistenciaPanel")?.classList.remove("hidden");
-    void cargarOCrearAsistencia().catch((error) => setState("estadoLectura", error.message, true));
+    $("asistenciaPanel")?.classList.add("hidden");
+    $("cargandoListaPanel")?.classList.remove("hidden");
+    void cargarOCrearAsistencia().then(() => {
+      $("asistenciaPanel")?.classList.remove("hidden");
+    }).catch((error) => mostrarSinSesion(error.message)).finally(() => {
+      $("cargandoListaPanel")?.classList.add("hidden");
+    });
   });
   $("btnEmpezarLista")?.addEventListener("click", () => void crearNuevaAsistencia());
 
@@ -242,14 +256,16 @@ function renderGrupo() {
 }
 
 async function cargarOCrearAsistencia() {
-  // El servidor decide cuál es la lista abierta del grupo.
-  // Nunca crear una lista al cargar la página.
   const response = await callApiSession("estadoAsistencia", {});
   if (response.asistencia?.estado === "ACTIVA") {
     aplicarListaCompartida(response);
     return true;
   }
+  state.listaAnteriorId = response.listaAnteriorId || "";
+  state.ausenciasAnteriores = response.ausenciasAnteriores || [];
+  state.revisionAusencias = new Map();
   mostrarPreparacionLista();
+  renderRevisionAnterior();
   return false;
 }
 
@@ -265,7 +281,14 @@ async function crearNuevaAsistencia() {
   state.iniciandoLista = true;
   setDisabled("btnEmpezarLista", true);
   try {
-    const response = await callApiSession("crearAsistencia", { nombre });
+    const anteriores = state.ausenciasAnteriores || [];
+    if (anteriores.some((p) => !state.revisionAusencias?.has(p.inscripcionId))) {
+      setState("estadoLectura", "Revisa si cada persona sigue ausente o ya se reincorporó.", true);
+      return false;
+    }
+    const response = await callApiSession("crearAsistencia", { nombre,
+      listaAnteriorId: state.listaAnteriorId || "",
+      revisionAusencias: [...(state.revisionAusencias || new Map()).values()] });
     aplicarListaCompartida(response);
     $("finalizadaPanel")?.classList.add("hidden");
     $("asistenciaPanel")?.classList.remove("hidden");
@@ -489,6 +512,7 @@ function renderAsistenciaIndividual() {
                               ""
                             )}
                           </span>
+                          ${(() => { const j = (state.ausentes || []).find((p) => p.inscripcionId === item.inscripcionId); return j?.motivo ? `<span class="ausencia-detalle">${esc(j.motivo)}${j.detalle ? ": " + esc(j.detalle) : ""}</span>` : ""; })()}
                         </span>
                       </div>
                     `
@@ -1031,21 +1055,37 @@ async function procesarNfcDesdeUrl() {
 }
 
 async function finalizarAsistencia() {
-  if (!state.asistencia?.id || state.cerrandoLista) return;
-  if (!window.confirm("¿Cerrar esta lista para todos los coordinadores del grupo?")) return;
+  if (!state.asistencia?.id || state.cerrandoLista || state.iniciandoLista || state.guardandoMotivo) return;
   state.cerrandoLista = true;
   const id = state.asistencia.id;
   setDisabled("btnFinalizar", true);
   detenerLectura();
   try {
-    // Esperar la lectura ya enviada; no admitir nuevas lecturas en este teléfono.
     while (state.processing || state.procesandoCola) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    const actual = await callApiSession("estadoAsistencia", { asistenciaId: id });
+    if (actual.asistencia?.estado === "FINALIZADA") return mostrarListaCerrada(actual);
+    if (actual.asistencia?.estado !== "ACTIVA") throw new Error("La lista ya no está abierta.");
+    aplicarListaCompartida(actual);
+    const ausentes = actual.ausentes || [];
+    if (ausentes.length && !state.revisandoCierre) {
+      state.revisandoCierre = true;
+      renderAusentesCierre();
+      $("revisionCierreBox")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (ausentes.some((p) => !p.motivo)) {
+      state.revisandoCierre = true;
+      renderAusentesCierre();
+      setState("estadoLectura", "Justifica a cada ausente o marca Sin justificación.", true);
+      return;
+    }
+    if (!window.confirm(ausentes.length
+      ? `¿Cerrar para todos con ${ausentes.length} ausentes y sus motivos registrados?`
+      : "¿Cerrar esta lista para todos los coordinadores del grupo?")) return;
     const ubicacion = await ubicacionActualDeCierre();
-    const response = await callApiSession("finalizarAsistencia", {
-      asistenciaId: id, ubicacion
-    });
+    const response = await callApiSession("finalizarAsistencia", { asistenciaId: id, ubicacion });
     mostrarListaCerrada(response);
   } catch (error) {
     setState("estadoLectura", error.message || "No fue posible cerrar la lista.", true);
@@ -1971,6 +2011,8 @@ function esc(
 }
 
 function mostrarPreparacionLista() {
+  state.revisandoCierre = false;
+  $("revisionCierreBox")?.classList.add("hidden");
   state.asistencia = null;
   state.pasajeros = [];
   state.leidos = new Map();
@@ -1990,6 +2032,7 @@ function aplicarListaCompartida(response) {
   const anteriores = state.asistencia?.id === response.asistencia?.id
     ? state.leidos : new Map();
   state.asistencia = response.asistencia;
+  state.ausentes = response.ausentes || [];
   state.pasajeros = response.pasajeros || [];
   state.leidos = new Map([...anteriores, ...(response.leidos || []).filter((p) => p.inscripcionId)
     .map((p) => [p.inscripcionId, p])]);
@@ -2001,9 +2044,12 @@ function aplicarListaCompartida(response) {
   if (!state.reading) $("btnIniciarLectura")?.classList.remove("hidden");
   actualizarEstadoUbicacion("La ubicación se registra al cerrar la lista.");
   renderAsistencia();
+  renderAusentesCierre();
 }
 
 function mostrarListaCerrada(response) {
+  state.revisandoCierre = false;
+  $("revisionCierreBox")?.classList.add("hidden");
   detenerLectura();
   state.asistencia = response.asistencia;
   state.resultadoCierre = response;
@@ -2022,17 +2068,23 @@ function iniciarSincronizacionCompartida() {
   // Solo consultar cuando esta pestaña está visible; nunca crear desde el timer.
   const actualizar = async () => {
     if (document.hidden || state.actualizandoLista || state.processing ||
-        state.procesandoCola || state.cerrandoLista || state.iniciandoLista ||
+        state.procesandoCola || state.cerrandoLista || state.iniciandoLista || state.guardandoMotivo ||
         state.asistencia?.estado === "FINALIZADA") return;
     state.actualizandoLista = true;
     const id = state.asistencia?.id || "";
     try {
       const response = await callApiSession("estadoAsistencia", id ? { asistenciaId: id } : {});
-      if (state.processing || state.procesandoCola || state.cerrandoLista || state.iniciandoLista) return;
+      if (state.processing || state.procesandoCola || state.cerrandoLista || state.iniciandoLista || state.guardandoMotivo) return;
       if (id && state.asistencia?.id !== id) return;
       if (response.asistencia?.estado === "FINALIZADA") mostrarListaCerrada(response);
       else if (response.asistencia?.estado === "ACTIVA") aplicarListaCompartida(response);
       else if (id) { detenerLectura(); mostrarPreparacionLista(); }
+      else if (!state.asistencia && state.listaAnteriorId !== (response.listaAnteriorId || "")) {
+        state.listaAnteriorId = response.listaAnteriorId || "";
+        state.ausenciasAnteriores = response.ausenciasAnteriores || [];
+        state.revisionAusencias = new Map();
+        renderRevisionAnterior();
+      }
     } catch (error) {
       if (error.status === 401) { detenerLectura(); mostrarSinSesion(error.message); }
     } finally { state.actualizandoLista = false; }
@@ -2055,12 +2107,13 @@ function detallePersonasHtml(response) {
   if (response.asistencia?.modalidad === "grupal") {
     return '<p>La pulsera grupal no identifica presentes y ausentes individualmente.</p>';
   }
-  const bloque = (titulo, items = []) => `<h4>${titulo} (${items.length})</h4>
+  const bloque = (titulo, items = [], motivos = false) => `<h4>${titulo} (${items.length})</h4>
     ${items.length ? `<ul class="lista-nombres">${items.map((p) =>
-      `<li>${esc(p.nombreCompleto || "Sin nombre")}</li>`).join("")}</ul>` : "<p>Ninguno.</p>"}`;
+      `<li>${esc(p.nombreCompleto || "Sin nombre")}${motivos
+        ? `<span class="ausencia-detalle">${esc(p.motivo || "Sin justificación registrada")}${p.detalle ? ": " + esc(p.detalle) : ""}</span>` : ""}</li>`).join("")}</ul>` : "<p>Ninguno.</p>"}`;
   return `${response.nominaHistorica === false ?
     '<p class="section-copy">Lista anterior: nombres y ausentes calculados con la nómina actual.</p>' : ""}
-    ${bloque("Presentes", response.presentes)}${bloque("Ausentes", response.ausentes)}`;
+    ${bloque("Presentes", response.presentes)}${bloque("Ausentes", response.ausentes, true)}`;
 }
 
 async function archivarListaHistorial(button) {
@@ -2075,4 +2128,111 @@ async function archivarListaHistorial(button) {
   } catch (error) {
     $("historialAsistenciasEstado").textContent = error.message;
   } finally { button.disabled = false; }
+}
+
+
+function mostrarAvisoIphone() {
+  const iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  $("avisoIphone")?.classList.toggle("hidden", !iphone);
+}
+
+function prepararEventosAusencias() {
+  $("btnAplicarMotivoCierre")?.addEventListener("click", () => void aplicarMotivoCierre());
+  $("btnConfirmarCierre")?.addEventListener("click", () => void finalizarAsistencia());
+  $("btnCancelarCierre")?.addEventListener("click", () => {
+    state.revisandoCierre = false;
+    $("revisionCierreBox")?.classList.add("hidden");
+  });
+  $("btnSiguenAusentes")?.addEventListener("click", () => aplicarRevisionAnterior(true));
+  $("btnReincorporados")?.addEventListener("click", () => aplicarRevisionAnterior(false));
+}
+
+function motivosHtml() {
+  return '<option value="">Selecciona un motivo</option>' +
+    ["Enfermedad", "Acompañamiento", "Otro", "Sin justificación"]
+      .map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+}
+
+function renderRevisionAnterior() {
+  const items = state.ausenciasAnteriores || [];
+  $("revisionAnteriorBox")?.classList.toggle("hidden", !items.length);
+  if (!$("ausenciasAnterioresContenido")) return;
+  $("ausenciasAnterioresContenido").innerHTML = items.map((p) => {
+    const r = state.revisionAusencias?.get(p.inscripcionId);
+    return `<label class="ausencia-fila"><input type="checkbox" data-ausencia-anterior="${esc(p.inscripcionId)}">
+      <span><strong>${esc(p.nombreCompleto)}</strong>
+      <span class="ausencia-detalle">Anterior: ${esc(p.motivo)}${p.detalle ? ": " + esc(p.detalle) : ""}</span>
+      <span class="ausencia-detalle">${!r ? "Pendiente de revisar" : r.sigueAusente
+        ? "Sigue ausente: " + esc(r.motivo) + (r.detalle ? ": " + esc(r.detalle) : "")
+        : "Ya se reincorporó · pendiente de leer pulsera"}</span></span></label>`;
+  }).join("");
+  if ($("motivoAnteriorInput") && !$("motivoAnteriorInput").options.length) {
+    $("motivoAnteriorInput").innerHTML = '<option value="">Mantener el motivo anterior de cada persona</option>' +
+      motivosHtml().replace('<option value="">Selecciona un motivo</option>', "");
+  }
+}
+
+function aplicarRevisionAnterior(sigueAusente) {
+  const seleccionados = [...document.querySelectorAll("[data-ausencia-anterior]:checked")]
+    .map((el) => el.dataset.ausenciaAnterior);
+  if (!seleccionados.length) return setState("estadoLectura", "Selecciona una o más personas.", true);
+  const motivo = $("motivoAnteriorInput")?.value || "";
+  const detalle = String($("detalleAnteriorInput")?.value || "").trim();
+  if (sigueAusente && motivo && motivo !== "Sin justificación" && !detalle) {
+    return setState("estadoLectura", "Describe el nuevo motivo antes de aplicarlo.", true);
+  }
+  state.revisionAusencias ||= new Map();
+  for (const p of state.ausenciasAnteriores || []) {
+    if (!seleccionados.includes(p.inscripcionId)) continue;
+    state.revisionAusencias.set(p.inscripcionId, { inscripcionId: p.inscripcionId, sigueAusente,
+      motivo: motivo || p.motivo, detalle: motivo ? detalle : p.detalle || "" });
+  }
+  renderRevisionAnterior();
+  setState("estadoLectura", "Revisión aplicada. Puedes continuar con las demás personas.", false, true);
+}
+
+function renderAusentesCierre() {
+  const box = $("revisionCierreBox");
+  if (!box) return;
+  box.classList.toggle("hidden", !state.revisandoCierre);
+  if (!state.revisandoCierre) return;
+  const checked = new Set([...document.querySelectorAll("[data-ausente-cierre]:checked")]
+    .map((el) => el.dataset.ausenteCierre));
+  const items = state.ausentes || [];
+  $("ausentesCierreTitulo").textContent = `Revisa ${items.length} ausentes antes de cerrar`;
+  $("ausentesCierreContenido").innerHTML = items.map((p) =>
+    `<label class="ausencia-fila"><input type="checkbox" data-ausente-cierre="${esc(p.inscripcionId)}" ${checked.has(p.inscripcionId) ? "checked" : ""}>
+      <span><strong>${esc(p.nombreCompleto)}</strong><span class="ausencia-detalle">${esc(p.motivo || "Pendiente de justificar")}${p.detalle ? ": " + esc(p.detalle) : ""}</span></span></label>`).join("");
+  if (!$("motivoCierreInput").options.length) $("motivoCierreInput").innerHTML = motivosHtml();
+}
+
+async function aplicarMotivoCierre() {
+  if (state.guardandoMotivo || state.cerrandoLista) return;
+  const seleccionados = [...document.querySelectorAll("[data-ausente-cierre]:checked")]
+    .map((el) => el.dataset.ausenteCierre);
+  if (!seleccionados.length) return setState("estadoLectura", "Selecciona una o más personas.", true);
+  const motivo = $("motivoCierreInput")?.value || "";
+  const detalle = String($("detalleCierreInput")?.value || "").trim();
+  if (!motivo || (motivo !== "Sin justificación" && !detalle)) {
+    return setState("estadoLectura", "Selecciona un motivo y describe la situación.", true);
+  }
+  state.guardandoMotivo = true;
+  setDisabled("btnAplicarMotivoCierre", true);
+  setDisabled("btnConfirmarCierre", true);
+  try {
+    const response = await callApiSession("justificarAusencias", {
+      asistenciaId: state.asistencia.id,
+      justificaciones: seleccionados.map((inscripcionId) => ({ inscripcionId, motivo, detalle }))
+    });
+    aplicarListaCompartida(response);
+    document.querySelectorAll("[data-ausente-cierre]:checked").forEach((el) => { el.checked = false; });
+    setState("estadoLectura", "Motivo guardado y compartido con los demás coordinadores.", false, true);
+  } catch (error) {
+    setState("estadoLectura", error.message, true);
+  } finally {
+    state.guardandoMotivo = false;
+    setDisabled("btnAplicarMotivoCierre", false);
+    setDisabled("btnConfirmarCierre", false);
+  }
 }
