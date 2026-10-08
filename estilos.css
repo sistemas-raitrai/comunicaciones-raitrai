@@ -800,3 +800,13 @@ body {
   height: 48px;
   object-fit: contain;
 }
+
+/* HISTORIAL SIMPLE DE ASISTENCIA */
+.historial-lista { margin-top: 16px; padding: 18px; }
+.historial-lista h3 { margin: 0 0 10px; overflow-wrap: anywhere; }
+.historial-lista p { margin: 8px 0; }
+.lista-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.lista-acciones .portal-button { width: auto; margin: 0; }
+.lista-nombres { margin: 8px 0 18px; padding-left: 22px; }
+.lista-nombres li { margin: 7px 0; overflow-wrap: anywhere; }
+#listaActivaNombre { overflow-wrap: anywhere; }
