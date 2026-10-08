@@ -810,3 +810,49 @@ body {
 .lista-nombres { margin: 8px 0 18px; padding-left: 22px; }
 .lista-nombres li { margin: 7px 0; overflow-wrap: anywhere; }
 #listaActivaNombre { overflow-wrap: anywhere; }
+
+/* Revisión de ausencias */
+.ausencia-fila {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5ddee;
+  cursor: pointer;
+}
+
+.ausencia-fila input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  margin: 2px 0;
+  accent-color: #4b2676;
+}
+
+.ausencia-fila > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ausencia-detalle {
+  display: block;
+  margin-top: 4px;
+  font-size: .9rem;
+  color: #645a70;
+  white-space: pre-wrap;
+}
+
+#revisionCierreBox,
+#revisionAnteriorBox {
+  border: 1px solid #ddd4e6;
+  border-radius: 14px;
+  padding: 16px;
+  background: #faf7fd;
+}
+
+#revisionCierreBox textarea,
+#revisionAnteriorBox textarea {
+  box-sizing: border-box;
+  resize: vertical;
+  font: inherit;
+}
