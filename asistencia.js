@@ -114,6 +114,8 @@ async function init() {
       response.grupo;
 
     renderGrupo();
+    
+    void cargarHistorialAsistencias();
 
     $("sinSesionPanel")
       ?.classList
@@ -524,6 +526,8 @@ async function crearNuevaAsistencia() {
       .add("hidden");
 
     renderAsistencia();
+    
+    void cargarHistorialAsistencias();
 
     setState(
       "estadoLectura",
@@ -1413,6 +1417,8 @@ async function finalizarAsistencia() {
       .remove("hidden");
 
     renderResultadoFinal();
+
+    void cargarHistorialAsistencias();
   } catch (error) {
     setState(
       "estadoLectura",
@@ -1856,6 +1862,367 @@ function actualizarEstadoUbicacion(
     $("ubicacionEstado")
       .textContent =
       texto;
+  }
+}
+
+var historialAsistenciasState = {
+  registros: [],
+  siguienteId: "",
+  hayMas: false,
+  cargando: false,
+  eventosPreparados: false
+};
+
+function escaparHistorial(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[character]));
+}
+
+function fechaHistorial(value) {
+  if (!value) {
+    return "Sin registro";
+  }
+
+  const date = new Date(value);
+
+  if (!Number.isFinite(date.getTime())) {
+    return "Sin registro";
+  }
+
+  return date.toLocaleString("es-CL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+
+function ubicacionHistorialHtml(ubicacion, etiqueta) {
+  if (
+    !ubicacion ||
+    ubicacion.lat == null ||
+    ubicacion.lng == null
+  ) {
+    return `<p>${escaparHistorial(etiqueta)}: sin ubicación registrada.</p>`;
+  }
+
+  const lat = Number(ubicacion.lat);
+  const lng = Number(ubicacion.lng);
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 || lat > 90 ||
+    lng < -180 || lng > 180
+  ) {
+    return `<p>${escaparHistorial(etiqueta)}: sin ubicación registrada.</p>`;
+  }
+
+  const url =
+    `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  const accuracy = Number(ubicacion.accuracy);
+  const precision =
+    ubicacion.accuracy != null &&
+    Number.isFinite(accuracy)
+      ? ` · Precisión aproximada: ${Math.round(accuracy)} m`
+      : "";
+
+  return `
+    <p>
+      <a
+        href="${url}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        📍 ${escaparHistorial(etiqueta)}
+      </a>
+      ${escaparHistorial(precision)}
+    </p>
+  `;
+}
+
+function prepararEventosHistorial() {
+  if (historialAsistenciasState.eventosPreparados) {
+    return;
+  }
+
+  historialAsistenciasState.eventosPreparados = true;
+
+  $("btnActualizarHistorial")?.addEventListener("click", () => {
+    void cargarHistorialAsistencias();
+  });
+
+  $("btnMasHistorial")?.addEventListener("click", () => {
+    void cargarHistorialAsistencias(true);
+  });
+
+  $("historialAsistenciasContenido")?.addEventListener(
+    "click",
+    (event) => {
+      const button = event.target.closest(
+        "button[data-detalle-asistencia]"
+      );
+
+      if (!button) {
+        return;
+      }
+
+      void mostrarDetalleHistorial(button);
+    }
+  );
+}
+
+async function cargarHistorialAsistencias(continuar = false) {
+  if (
+    !state.sessionToken ||
+    !state.activeGroup ||
+    historialAsistenciasState.cargando
+  ) {
+    return;
+  }
+
+  prepararEventosHistorial();
+
+  $("historialAsistenciasPanel")?.classList.remove("hidden");
+
+  const estado = $("historialAsistenciasEstado");
+
+  historialAsistenciasState.cargando = true;
+
+  $("btnActualizarHistorial").disabled = true;
+  $("btnMasHistorial").disabled = true;
+  estado.textContent = "Cargando historial...";
+
+  try {
+    const response = await callApiSession(
+      "historialAsistencias",
+      {
+        desdeId: continuar
+          ? historialAsistenciasState.siguienteId
+          : ""
+      }
+    );
+
+    const nuevos = Array.isArray(response.asistencias)
+      ? response.asistencias
+      : [];
+
+    const registros = continuar
+      ? [...historialAsistenciasState.registros, ...nuevos]
+      : nuevos;
+
+    historialAsistenciasState.registros = [
+      ...new Map(registros.map((item) => [item.id, item])).values()
+    ];
+
+    historialAsistenciasState.siguienteId =
+      response.siguienteId || "";
+
+    historialAsistenciasState.hayMas =
+      response.hayMas === true;
+
+    renderHistorialAsistencias();
+
+    estado.textContent = "";
+  } catch (error) {
+    estado.textContent =
+      error.message || "No fue posible cargar el historial.";
+  } finally {
+    historialAsistenciasState.cargando = false;
+
+    $("btnActualizarHistorial").disabled = false;
+    $("btnMasHistorial").disabled = false;
+  }
+}
+
+function renderHistorialAsistencias() {
+  const container = $("historialAsistenciasContenido");
+
+  $("btnMasHistorial")?.classList.toggle(
+    "hidden",
+    !historialAsistenciasState.hayMas
+  );
+
+  if (!historialAsistenciasState.registros.length) {
+    container.innerHTML = `
+      <div class="empty-box">
+        Todavía no hay listas registradas para este grupo.
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML = historialAsistenciasState.registros
+    .map((item) => {
+      const total = Number(item.totalEsperado || 0);
+      const leidos = Number(item.totalLeidos || 0);
+
+      const resumen = item.modalidad === "grupal"
+        ? (
+            item.grupoRegistrado
+              ? "✓ Pulsera grupal registrada."
+              : "Pulsera grupal pendiente de lectura."
+          )
+        : (
+            `Registrados: ${leidos} de ${total}` +
+            ` · Pendientes: ${Math.max(0, total - leidos)}`
+          );
+
+      const estado = item.estado === "FINALIZADA"
+        ? "Finalizada"
+        : item.estado === "ACTIVA"
+          ? "Activa"
+          : item.estado || "Sin estado";
+
+      return `
+        <article class="info-section">
+          <h3>${escaparHistorial(item.nombre)}</h3>
+
+          <p><strong>Estado:</strong> ${escaparHistorial(estado)}</p>
+
+          <p>
+            <strong>Inicio:</strong>
+            ${escaparHistorial(fechaHistorial(item.creadaAt))}
+          </p>
+
+          <p>
+            <strong>Finalización:</strong>
+            ${
+              item.finalizadaAt
+                ? escaparHistorial(fechaHistorial(item.finalizadaAt))
+                : "Sin finalización registrada"
+            }
+          </p>
+
+          ${ubicacionHistorialHtml(
+            item.ubicacionInicio,
+            "Ubicación de inicio"
+          )}
+
+          ${ubicacionHistorialHtml(
+            item.ubicacionFin,
+            "Ubicación de finalización"
+          )}
+
+          <div class="empty-box">
+            ${escaparHistorial(resumen)}
+          </div>
+
+          <button
+            type="button"
+            class="portal-button compact secondary"
+            data-detalle-asistencia="${escaparHistorial(item.id)}"
+          >
+            VER LECTURAS
+          </button>
+
+          <div
+            class="hidden"
+            data-contenido-detalle
+          ></div>
+
+          <div class="separator"></div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function mostrarDetalleHistorial(button) {
+  const container = button
+    .closest("article")
+    ?.querySelector("[data-contenido-detalle]");
+
+  if (!container) {
+    return;
+  }
+
+  if (!container.classList.contains("hidden")) {
+    container.classList.add("hidden");
+    button.textContent = "VER LECTURAS";
+    return;
+  }
+
+  container.classList.remove("hidden");
+  container.textContent = "Cargando lecturas...";
+  button.disabled = true;
+
+  try {
+    const response = await callApiSession(
+      "detalleAsistenciaHistorial",
+      {
+        asistenciaId: button.dataset.detalleAsistencia
+      }
+    );
+
+    const lecturas = Array.isArray(response.lecturas)
+      ? response.lecturas
+      : [];
+
+    const grupal = response.asistencia?.modalidad === "grupal";
+
+    container.innerHTML = lecturas.length
+      ? lecturas.map((lectura) => `
+          <div class="empty-box">
+            <p>
+              <strong>
+                ${escaparHistorial(
+                  grupal
+                    ? "Pulsera grupal"
+                    : lectura.nombreCompleto || "Pasajero"
+                )}
+              </strong>
+            </p>
+
+            <p>
+              Primera lectura:
+              ${escaparHistorial(
+                fechaHistorial(lectura.primeraLecturaAt)
+              )}
+            </p>
+
+            <p>
+              Última lectura:
+              ${escaparHistorial(
+                fechaHistorial(lectura.ultimaLecturaAt)
+              )}
+            </p>
+
+            ${ubicacionHistorialHtml(
+              lectura.ubicacion,
+              "Ubicación de la última lectura"
+            )}
+          </div>
+        `).join("")
+      : `
+          <div class="empty-box">
+            Esta lista todavía no tiene lecturas registradas.
+          </div>
+        `;
+
+    button.textContent = "OCULTAR LECTURAS";
+  } catch (error) {
+    container.textContent =
+      error.message || "No fue posible consultar las lecturas.";
+
+    button.textContent = "REINTENTAR";
+
+    // Permite que el siguiente clic vuelva a consultar.
+    container.classList.add("hidden");
+
+    const estado = $("historialAsistenciasEstado");
+    estado.textContent = container.textContent;
+  } finally {
+    button.disabled = false;
   }
 }
 
