@@ -25,6 +25,11 @@ const state = {
 init();
 
 async function init() {
+  const canonical = new URL(PORTAL_CONFIG.portalUrl);
+  if (location.origin !== canonical.origin) {
+    location.replace(new URL(location.pathname + location.search, canonical.origin).href);
+    return;
+  }
   bindEvents();
 
   comprobarNfc();
@@ -493,7 +498,7 @@ async function restaurarSesion() {
 
     abrirLector();
 
-    await recuperarUbicacionSilenciosa();
+    void recuperarUbicacionSilenciosa();
 
     await restaurarModo();
 
@@ -541,10 +546,12 @@ async function restaurarSesion() {
       NO eliminamos la sesión guardada.
     */
 
-    mostrarLogin();
+    restaurarGrupoDesdeLocalStorage();
+    if (state.activeGroup) abrirLector();
+    else mostrarLogin();
 
     setState(
-      "loginEstado",
+      state.activeGroup ? "lectorEstado" : "loginEstado",
       `Tu sesión sigue guardada, pero no fue posible comprobarla en este momento.${
         error?.message
           ? ` Detalle: ${error.message}`
@@ -904,187 +911,44 @@ async function consultarCodigo(
 }
 
 function capturarNfcDesdeUrl() {
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
-
-  const codigo =
-    sanitizeCode(
-      params.get("nfc") ||
-      ""
-    );
-
-  if (!codigo) {
-    return;
-  }
-
-  /*
-    =========================================================
-    REGLA NFC DESDE URL
-    =========================================================
-
-    Especialmente importante para iPhone.
-
-    iPhone abre nuevamente el link de la pulsera
-    cada vez que se realiza una lectura.
-
-    Si existe una asistencia activa, la lectura
-    debe volver SIEMPRE a esa misma asistencia.
-
-    Usamos dos indicadores de modo como respaldo:
-
-      attendanceModeKey === "active"
-
-    O:
-
-      modeKey === "asistencia"
-
-    Pero además exigimos que exista un
-    activeAttendanceKey.
-
-    Si no existe una asistencia activa,
-    la lectura se procesa normalmente como
-    FICHA MÉDICA.
-  */
-
-  const asistenciaId =
-    String(
-      localStorage.getItem(
-        PORTAL_CONFIG.activeAttendanceKey
-      ) ||
-      ""
-    ).trim();
-
-  const attendanceMode =
-    localStorage.getItem(
-      PORTAL_CONFIG.attendanceModeKey
-    );
-
-  const portalMode =
-    localStorage.getItem(
-      PORTAL_CONFIG.modeKey
-    );
-
-  const estaEnModoAsistencia =
-    attendanceMode === "active" ||
-    portalMode === "asistencia";
-
-  if (
-    estaEnModoAsistencia &&
-    asistenciaId
-  ) {
-    /*
-      Pasamos explícitamente el ID de la asistencia.
-
-      Esto es especialmente importante en iPhone,
-      porque cada lectura puede provocar una nueva
-      navegación/carga de página.
-    */
-
-    const destino =
-      new URL(
-        "asistencia.html",
-        window.location.href
-      );
-
-    destino.searchParams.set(
-      "nfc",
-      codigo
-    );
-
-    destino.searchParams.set(
-      "asistenciaId",
-      asistenciaId
-    );
-
-    window.location.replace(
-      destino.toString()
-    );
-
-    return;
-  }
-
-  /*
-    =========================================================
-    LECTURA NORMAL
-    =========================================================
-
-    Si NO estamos pasando lista, cualquier lectura
-    recibida en index corresponde a ficha médica.
-  */
-
-  localStorage.removeItem(
-    PORTAL_CONFIG.attendanceModeKey
-  );
-
-  localStorage.setItem(
-    PORTAL_CONFIG.modeKey,
-    "ficha_medica"
-  );
-
-  state.pendingNfcCode =
-    codigo;
-
-  sessionStorage.setItem(
-    PORTAL_CONFIG.pendingNfcKey,
-    codigo
-  );
-
-  const cleanUrl =
-    `${window.location.origin}${window.location.pathname}`;
-
-  window.history.replaceState(
-    {},
-    document.title,
-    cleanUrl
-  );
+  const params = new URLSearchParams(location.search);
+  const codigo = sanitizeCode(params.get("nfc") || "");
+  if (!codigo) return;
+  state.pendingNfcCode = codigo;
+  sessionStorage.setItem(PORTAL_CONFIG.pendingNfcKey, codigo);
+  history.replaceState({}, document.title, location.pathname);
 }
 
 async function procesarNfcPendiente() {
-  const codigo =
-    state.pendingNfcCode ||
-    sessionStorage.getItem(
-      PORTAL_CONFIG.pendingNfcKey
-    ) ||
-    "";
-
-  if (!codigo) {
-    return;
+  const codigo = state.pendingNfcCode || sessionStorage.getItem(PORTAL_CONFIG.pendingNfcKey) || "";
+  if (!codigo || !state.sessionToken) return;
+  const intencion = localStorage.getItem("raitrai_nfc_intencion_v2");
+  if (intencion !== "ficha_medica") {
+    try {
+      const response = await callApiSession("estadoAsistencia", {});
+      if (response.asistencia?.estado === "ACTIVA") {
+        state.pendingNfcCode = "";
+        sessionStorage.removeItem(PORTAL_CONFIG.pendingNfcKey);
+        const destino = new URL("asistencia.html", location.href);
+        destino.searchParams.set("nfc", codigo);
+        location.replace(destino.href);
+        return;
+      }
+      if (intencion === "asistencia") {
+        state.pendingNfcCode = "";
+        sessionStorage.removeItem(PORTAL_CONFIG.pendingNfcKey);
+        location.replace(new URL("asistencia.html", location.href).href);
+        return;
+      }
+    } catch (error) {
+      setState("lectorEstado", error.message, true);
+      return;
+    }
   }
-
-  if (
-    !state.sessionToken
-  ) {
-    return;
-  }
-
-  state.pendingNfcCode =
-    "";
-
-  sessionStorage.removeItem(
-    PORTAL_CONFIG.pendingNfcKey
-  );
-
-  /*
-    Toda lectura recibida en index
-    es FICHA MÉDICA.
-  */
-  state.modo =
-    "ficha_medica";
-
-  localStorage.setItem(
-    PORTAL_CONFIG.modeKey,
-    "ficha_medica"
-  );
-
-  localStorage.removeItem(
-    PORTAL_CONFIG.attendanceModeKey
-  );
-
-  await consultarCodigo(
-    codigo
-  );
+  state.pendingNfcCode = "";
+  sessionStorage.removeItem(PORTAL_CONFIG.pendingNfcKey);
+  state.modo = "ficha_medica";
+  await consultarCodigo(codigo);
 }
 
 function renderIndividualResult(
@@ -2341,6 +2205,7 @@ function obtenerUbicacion({
 }
 
 async function activarModoFicha() {
+  localStorage.setItem("raitrai_nfc_intencion_v2", "ficha_medica");
   state.modo =
     "ficha_medica";
 
@@ -2375,6 +2240,7 @@ async function activarModoFicha() {
 }
 
 function irAAsistencia() {
+  localStorage.setItem("raitrai_nfc_intencion_v2", "asistencia");
   if (
     !state.sessionToken
   ) {
@@ -2590,4 +2456,3 @@ function escAttribute(
     value
   );
 }
-
