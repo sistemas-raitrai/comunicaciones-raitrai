@@ -14,6 +14,13 @@
       <div class="brand-logo brand-logo-image"><img src="./Logo Raitrai.png" alt="Rai Trai" /></div>
       <div><h1>Pasar Lista</h1><p>Control de asistencia mediante pulseras NFC</p></div>
     </header>
+    <div id="avisoIphone" class="compatibility-box hidden">
+      En iPhone, usa Safari en navegación normal. En navegación privada el acceso puede no conservarse y podrías tener que ingresar nuevamente.
+    </div>
+    <section id="cargandoListaPanel" class="portal-card" role="status">
+      <h2>Cargando lista del grupo...</h2>
+      <p class="section-copy">Comprobando acceso y lista abierta.</p>
+    </section>
     <section id="sinSesionPanel" class="portal-card hidden">
       <div class="section-step">Acceso</div><h2>Sesión no disponible</h2>
       <p class="section-copy">Debes ingresar primero al lector de pulseras.</p>
@@ -25,10 +32,21 @@
           <h2 id="grupoTitulo">—</h2><p id="grupoDetalle">—</p></div>
         <button id="btnVolverLector" class="portal-button compact secondary" type="button">VOLVER</button>
       </div>
-      <div id="prepararListaBox" class="info-section">
+      <div id="prepararListaBox" class="info-section hidden">
         <label class="field-label" for="nombreListaInput">Nombre de la lista</label>
         <input id="nombreListaInput" class="portal-input" type="text" maxlength="100"
           autocomplete="off" placeholder="Ejemplo: Asistencia Beto Carrero" />
+        <div id="revisionAnteriorBox" class="info-section hidden">
+          <h3>¿Estas personas siguen ausentes?</h3>
+          <p class="section-copy">Selecciona varias para mantener o cambiar su motivo. Revisa a todas antes de empezar.</p>
+          <div id="ausenciasAnterioresContenido"></div>
+          <label class="field-label" for="motivoAnteriorInput">Motivo</label>
+          <select id="motivoAnteriorInput" class="portal-input"></select>
+          <label class="field-label" for="detalleAnteriorInput">Detalle si cambias el motivo</label>
+          <textarea id="detalleAnteriorInput" class="portal-input" maxlength="500" rows="2"></textarea>
+          <button id="btnSiguenAusentes" class="portal-button secondary" type="button">SIGUEN AUSENTES</button>
+          <button id="btnReincorporados" class="portal-button secondary" type="button">YA SE REINCORPORARON</button>
+        </div>
         <button id="btnEmpezarLista" class="portal-button primary" type="button">EMPEZAR LISTA</button>
         <p class="section-copy">Si otro coordinador ya abrió una lista, continuarás en esa misma lista.</p>
       </div>
@@ -55,6 +73,18 @@
         </div>
       </div>
       <div id="resumenAsistencia"></div>
+      <div id="revisionCierreBox" class="info-section hidden">
+        <h3 id="ausentesCierreTitulo">Revisa los ausentes antes de cerrar</h3>
+        <p class="section-copy">Selecciona una o más personas para aplicar el mismo motivo. El adulto que acompaña puede tener una justificación diferente.</p>
+        <div id="ausentesCierreContenido"></div>
+        <label class="field-label" for="motivoCierreInput">Motivo</label>
+        <select id="motivoCierreInput" class="portal-input"></select>
+        <label class="field-label" for="detalleCierreInput">Describe la situación</label>
+        <textarea id="detalleCierreInput" class="portal-input" rows="2" maxlength="500" placeholder="Ejemplo: se quedaron en el hotel"></textarea>
+        <button id="btnAplicarMotivoCierre" class="portal-button secondary" type="button">APLICAR A SELECCIONADOS</button>
+        <button id="btnConfirmarCierre" class="portal-button primary" type="button">CONFIRMAR CIERRE</button>
+        <button id="btnCancelarCierre" class="text-button" type="button">Volver a la lista</button>
+      </div>
       <button id="btnFinalizar" class="portal-button secondary hidden" type="button">CERRAR LISTA</button>
     </section>
     <section id="finalizadaPanel" class="portal-card hidden">
