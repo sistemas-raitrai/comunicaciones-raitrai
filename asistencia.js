@@ -59,132 +59,33 @@ const state = {
 init();
 
 async function init() {
-  bindEvents();
-
-  comprobarNfc();
-
-  localStorage.setItem(
-    PORTAL_CONFIG.modeKey,
-    "asistencia"
-  );
-
-  localStorage.setItem(
-    PORTAL_CONFIG.attendanceModeKey,
-    "active"
-  );
-
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
-
-  const asistenciaIdUrl =
-    String(
-      params.get("asistenciaId") ||
-      ""
-    ).trim();
-
-  const token =
-    String(
-      localStorage.getItem(
-        PORTAL_CONFIG.sessionTokenKey
-      ) ||
-      ""
-    ).trim();
-
-  if (!token) {
-    mostrarSinSesion(
-      "No se encontró una sesión guardada en este navegador. Abre el lector de pulseras e ingresa al grupo una vez desde este mismo navegador."
-    );
-
+  const canonical = new URL(PORTAL_CONFIG.portalUrl);
+  if (location.origin !== canonical.origin) {
+    location.replace(new URL(location.pathname + location.search, canonical.origin).href);
     return;
   }
-
-  state.sessionToken =
-    token;
-
+  bindEvents();
+  comprobarNfc();
+  const token = localStorage.getItem(PORTAL_CONFIG.sessionTokenKey) || "";
+  if (!token) return mostrarSinSesion("Ingresa al grupo una vez desde este navegador.");
+  state.sessionToken = token;
+  localStorage.setItem(PORTAL_CONFIG.modeKey, "asistencia");
+  localStorage.setItem("raitrai_nfc_intencion_v2", "asistencia");
   try {
-    const response =
-      await callApiSession(
-        "estadoSesion",
-        {}
-      );
-
-    state.activeGroup =
-      response.grupo;
-
+    const response = await callApiSession("estadoSesion", {});
+    state.activeGroup = response.grupo;
+    localStorage.setItem(PORTAL_CONFIG.activeGroupKey, JSON.stringify(response.grupo));
     renderGrupo();
-    
-    void cargarHistorialAsistencias();
-
-    $("sinSesionPanel")
-      ?.classList
-      .add("hidden");
-
-    $("asistenciaPanel")
-      ?.classList
-      .remove("hidden");
-
-    $("finalizadaPanel")
-      ?.classList
-      .add("hidden");
-
-    /*
-      IMPORTANTE:
-
-      NO esperamos ubicación aquí.
-
-      Primero dejamos operativa la asistencia.
-    */
-
-    const asistenciaDisponible =
-      await cargarOCrearAsistencia(
-        asistenciaIdUrl
-      );
-
-    if (!asistenciaDisponible) {
-      return;
-    }
-
-    /*
-      Si iPhone abrió la página por NFC,
-      registramos primero la pulsera.
-    */
-
+    $("sinSesionPanel")?.classList.add("hidden");
+    $("asistenciaPanel")?.classList.remove("hidden");
+    $("finalizadaPanel")?.classList.add("hidden");
+    await cargarOCrearAsistencia();
     await procesarNfcDesdeUrl();
-
-    /*
-      La ubicación se obtiene después,
-      en segundo plano.
-    */
-
-    void recuperarUbicacion();
-
+    void cargarHistorialAsistencias();
+    iniciarSincronizacionCompartida();
   } catch (error) {
-    console.error(
-      "[asistencia] init",
-      error
-    );
-
-    if (
-      Number(error?.status) ===
-      401
-    ) {
-      mostrarSinSesion(
-        error.message ||
-        "La sesión guardada ya no es válida. Ingresa nuevamente al grupo."
-      );
-
-      return;
-    }
-
-    mostrarSinSesion(
-      `Existe una sesión guardada, pero no fue posible validarla en este momento.${
-        error?.message
-          ? ` Detalle: ${error.message}`
-          : ""
-      }`
-    );
+    mostrarSinSesion(error.status === 401 ? error.message :
+      "Tu acceso sigue guardado. No fue posible conectar; vuelve a intentar cuando tengas conexión.");
   }
 }
 
@@ -207,11 +108,13 @@ function bindEvents() {
       volverAlLector
     );
 
-  $("btnNuevaLista")
-    ?.addEventListener(
-      "click",
-      crearNuevaAsistencia
-    );
+  $("btnNuevaLista")?.addEventListener("click", () => {
+    mostrarPreparacionLista();
+    $("finalizadaPanel")?.classList.add("hidden");
+    $("asistenciaPanel")?.classList.remove("hidden");
+    void cargarOCrearAsistencia().catch((error) => setState("estadoLectura", error.message, true));
+  });
+  $("btnEmpezarLista")?.addEventListener("click", () => void crearNuevaAsistencia());
 
   $("btnIniciarLectura")
     ?.addEventListener(
@@ -338,294 +241,56 @@ function renderGrupo() {
     "Grupo activo";
 }
 
-async function cargarOCrearAsistencia(
-  asistenciaIdPreferida = ""
-) {
-  const asistenciaIdLocal =
-    String(
-      localStorage.getItem(
-        PORTAL_CONFIG.activeAttendanceKey
-      ) ||
-      ""
-    ).trim();
-
-  const asistenciaIdUrl =
-    String(
-      asistenciaIdPreferida ||
-      ""
-    ).trim();
-
-  /*
-    =========================================================
-    1. PRIORIDAD: ASISTENCIA RECIBIDA DESDE EL NFC
-    =========================================================
-
-    En iPhone index.html incluye explícitamente
-    el ID de la asistencia en la URL.
-  */
-
-  if (asistenciaIdUrl) {
-    const restaurada =
-      await restaurarAsistencia(
-        asistenciaIdUrl
-      );
-
-    if (restaurada) {
-      /*
-        Volvemos a persistir el ID localmente
-        para reforzar la continuidad de las
-        siguientes lecturas.
-      */
-
-      localStorage.setItem(
-        PORTAL_CONFIG.activeAttendanceKey,
-        asistenciaIdUrl
-      );
-
-      localStorage.setItem(
-        PORTAL_CONFIG.attendanceModeKey,
-        "active"
-      );
-
-      localStorage.setItem(
-        PORTAL_CONFIG.modeKey,
-        "asistencia"
-      );
-
-      return true;
-    }
-
-    /*
-      Si la URL decía explícitamente que debíamos
-      utilizar una asistencia y ésta ya no existe
-      o no está ACTIVA, NO creamos silenciosamente
-      una asistencia nueva.
-
-      Eso evitaría que una lectura de iPhone
-      termine accidentalmente en otra lista.
-    */
-
-    setState(
-      "estadoLectura",
-      "La lista de asistencia asociada a esta lectura ya no está activa. Vuelve a iniciar Pasar Lista.",
-      true
-    );
-
-    return false;
+async function cargarOCrearAsistencia() {
+  // El servidor decide cuál es la lista abierta del grupo.
+  // Nunca crear una lista al cargar la página.
+  const response = await callApiSession("estadoAsistencia", {});
+  if (response.asistencia?.estado === "ACTIVA") {
+    aplicarListaCompartida(response);
+    return true;
   }
-
-  /*
-    =========================================================
-    2. ASISTENCIA GUARDADA LOCALMENTE
-    =========================================================
-  */
-
-  if (asistenciaIdLocal) {
-    const restaurada =
-      await restaurarAsistencia(
-        asistenciaIdLocal
-      );
-
-    if (restaurada) {
-      localStorage.setItem(
-        PORTAL_CONFIG.attendanceModeKey,
-        "active"
-      );
-
-      localStorage.setItem(
-        PORTAL_CONFIG.modeKey,
-        "asistencia"
-      );
-
-      return true;
-    }
-  }
-
-  /*
-    =========================================================
-    3. NO HABÍA NINGUNA ASISTENCIA
-    =========================================================
-
-    Esto corresponde al ingreso normal al módulo
-    Pasar Lista.
-
-    Creamos una nueva asistencia.
-  */
-
-  await crearNuevaAsistencia();
-
-  return Boolean(
-    state.asistencia?.id
-  );
+  mostrarPreparacionLista();
+  return false;
 }
 
 async function crearNuevaAsistencia() {
-  detenerLectura();
-
-  setState(
-    "estadoLectura",
-    "Creando nueva lista..."
-  );
-
-  const ubicacion =
-    await obtenerUbicacionLectura();
-
-  const nombre =
-    generarNombreAsistencia();
-
-  try {
-    const response =
-      await callApiSession(
-        "crearAsistencia",
-        {
-          nombre,
-          ubicacion
-        }
-      );
-
-    state.asistencia =
-      response.asistencia;
-
-    state.pasajeros =
-      Array.isArray(
-        response.pasajeros
-      )
-        ? response.pasajeros
-        : [];
-
-    state.leidos =
-      new Map();
-
-    /*
-      Dejamos sincronizadas todas las marcas
-      necesarias para que iPhone pueda volver
-      a esta misma lista con cada nueva lectura.
-    */
-
-    localStorage.setItem(
-      PORTAL_CONFIG.activeAttendanceKey,
-      state.asistencia.id
-    );
-
-    localStorage.setItem(
-      PORTAL_CONFIG.attendanceModeKey,
-      "active"
-    );
-
-    localStorage.setItem(
-      PORTAL_CONFIG.modeKey,
-      "asistencia"
-    );
-
-    $("asistenciaPanel")
-      ?.classList
-      .remove("hidden");
-
-    $("finalizadaPanel")
-      ?.classList
-      .add("hidden");
-
-    renderAsistencia();
-    
-    void cargarHistorialAsistencias();
-
-    setState(
-      "estadoLectura",
-      "Lista preparada. Comienza a leer pulseras.",
-      false,
-      true
-    );
-
-    return true;
-
-  } catch (error) {
-    console.error(
-      "[asistencia] crearNuevaAsistencia",
-      error
-    );
-
-    setState(
-      "estadoLectura",
-      error.message ||
-      "No fue posible crear la lista.",
-      true
-    );
-
+  if (state.iniciandoLista || state.cerrandoLista) return false;
+  const nombre = String($("nombreListaInput")?.value || "").trim();
+  if (!nombre) {
+    mostrarPreparacionLista();
+    $("nombreListaInput")?.focus();
+    setState("estadoLectura", "Escribe un nombre para empezar la lista.", true);
     return false;
+  }
+  state.iniciandoLista = true;
+  setDisabled("btnEmpezarLista", true);
+  try {
+    const response = await callApiSession("crearAsistencia", { nombre });
+    aplicarListaCompartida(response);
+    $("finalizadaPanel")?.classList.add("hidden");
+    $("asistenciaPanel")?.classList.remove("hidden");
+    setState("estadoLectura", response.reutilizada
+      ? "Te incorporaste a la lista abierta del grupo."
+      : "Lista abierta. Ya puedes leer pulseras.", false, true);
+    return true;
+  } catch (error) {
+    setState("estadoLectura", error.message, true);
+    return false;
+  } finally {
+    state.iniciandoLista = false;
+    setDisabled("btnEmpezarLista", false);
   }
 }
 
-async function restaurarAsistencia(
-  asistenciaId
-) {
-  try {
-    const response =
-      await callApiSession(
-        "estadoAsistencia",
-        {
-          asistenciaId
-        }
-      );
-
-    if (
-      response.asistencia?.estado !==
-      "ACTIVA"
-    ) {
-      localStorage.removeItem(
-        PORTAL_CONFIG.activeAttendanceKey
-      );
-
-      return false;
-    }
-
-    state.asistencia =
-      response.asistencia;
-
-    state.pasajeros =
-      Array.isArray(
-        response.pasajeros
-      )
-        ? response.pasajeros
-        : [];
-
-    state.leidos =
-      new Map(
-        (
-          response.leidos ||
-          []
-        ).map(
-          (item) => [
-            item.inscripcionId,
-            item
-          ]
-        )
-      );
-
-    renderAsistencia();
-
-    setState(
-      "estadoLectura",
-      "Lista recuperada. Puedes continuar leyendo.",
-      false,
-      true
-    );
-
-    return true;
-  } catch (error) {
-    console.warn(
-      "[asistencia] restaurar",
-      error
-    );
-
-    localStorage.removeItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    );
-
-    return false;
-  }
+async function restaurarAsistencia(asistenciaId) {
+  const response = await callApiSession("estadoAsistencia", { asistenciaId });
+  if (response.asistencia?.estado !== "ACTIVA") return false;
+  aplicarListaCompartida(response);
+  return true;
 }
 
 function renderAsistencia() {
+  if ($("listaActivaNombre")) $("listaActivaNombre").textContent = state.asistencia?.nombre || "";
   if (
     state.asistencia?.modalidad ===
     "grupal"
@@ -844,6 +509,7 @@ function renderAsistenciaIndividual() {
 function encolarCodigoAsistencia(
   codigoRaw
 ) {
+  if (state.cerrandoLista || state.asistencia?.estado !== "ACTIVA") return;
   const codigo =
     sanitizeCode(
       codigoRaw
@@ -915,6 +581,7 @@ async function procesarColaAsistencia() {
 async function registrarCodigo(
   codigoRaw
 ) {
+  if (state.asistencia?.estado !== "ACTIVA") return;
   if (
     !state.asistencia?.id
   ) {
@@ -978,6 +645,7 @@ async function registrarCodigo(
       state.ubicacion ||
       null;
 
+    const listaIdEnviada = state.asistencia.id;
     const response =
       await callApiSession(
         "registrarAsistencia",
@@ -991,6 +659,7 @@ async function registrarCodigo(
         }
       );
 
+    if (state.asistencia?.id !== listaIdEnviada || state.asistencia.estado !== "ACTIVA") return;
     if (
       response.otroGrupo ===
       true
@@ -1120,7 +789,7 @@ async function registrarCodigo(
       sin frenar esta lectura.
     */
 
-    void recuperarUbicacion();
+
 
   } catch (error) {
     setState(
@@ -1141,6 +810,10 @@ async function registrarCodigo(
 }
 
 async function iniciarLecturaContinua() {
+  if (!state.asistencia?.id || state.asistencia.estado !== "ACTIVA" || state.cerrandoLista) {
+    setState("estadoLectura", "Primero empieza una lista o continúa la abierta del grupo.", true);
+    return;
+  }
   if (
     state.reading
   ) {
@@ -1358,194 +1031,42 @@ async function procesarNfcDesdeUrl() {
 }
 
 async function finalizarAsistencia() {
-  if (
-    !state.asistencia?.id
-  ) {
-    return;
-  }
-
+  if (!state.asistencia?.id || state.cerrandoLista) return;
+  if (!window.confirm("¿Cerrar esta lista para todos los coordinadores del grupo?")) return;
+  state.cerrandoLista = true;
+  const id = state.asistencia.id;
+  setDisabled("btnFinalizar", true);
   detenerLectura();
-
-  const confirmar =
-    window.confirm(
-      "¿Finalizar esta lista de asistencia?"
-    );
-
-  if (!confirmar) {
-    return;
-  }
-
-  setDisabled(
-    "btnFinalizar",
-    true
-  );
-
   try {
-    const ubicacion =
-      await obtenerUbicacionLectura();
-
-    const response =
-      await callApiSession(
-        "finalizarAsistencia",
-        {
-          asistenciaId:
-            state.asistencia.id,
-
-          ubicacion
-        }
-      );
-
-    state.asistencia = {
-      ...state.asistencia,
-      ...response.asistencia
-    };
-
-    localStorage.removeItem(
-      PORTAL_CONFIG.activeAttendanceKey
-    );
-
-    localStorage.removeItem(
-      PORTAL_CONFIG.attendanceModeKey
-    );
-
-    $("asistenciaPanel")
-      ?.classList
-      .add("hidden");
-
-    $("finalizadaPanel")
-      ?.classList
-      .remove("hidden");
-
-    renderResultadoFinal();
-
-    void cargarHistorialAsistencias();
+    // Esperar la lectura ya enviada; no admitir nuevas lecturas en este teléfono.
+    while (state.processing || state.procesandoCola) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const ubicacion = await ubicacionActualDeCierre();
+    const response = await callApiSession("finalizarAsistencia", {
+      asistenciaId: id, ubicacion
+    });
+    mostrarListaCerrada(response);
   } catch (error) {
-    setState(
-      "estadoLectura",
-      error.message ||
-      "No fue posible finalizar la lista.",
-      true
-    );
+    setState("estadoLectura", error.message || "No fue posible cerrar la lista.", true);
   } finally {
-    setDisabled(
-      "btnFinalizar",
-      false
-    );
+    state.cerrandoLista = false;
+    setDisabled("btnFinalizar", false);
   }
 }
 
 function renderResultadoFinal() {
-  const total =
-    Number(
-      state.asistencia
-        ?.totalEsperado ||
-      0
-    );
-
-  const leidos =
-    Number(
-      state.asistencia
-        ?.totalLeidos ||
-      state.leidos.size ||
-      0
-    );
-
-  if (
-    state.asistencia
-      ?.modalidad ===
-    "grupal"
-  ) {
-    $("resultadoFinal")
-      .innerHTML = `
-        <div class="info-section">
-          <h3>
-            Resultado
-          </h3>
-
-          <div class="empty-box">
-            ${
-              state.asistencia.grupoRegistrado
-                ? `✓ Pulsera grupal registrada. Total asociado: ${total} pasajero(s).`
-                : `La lista fue finalizada sin registrar la pulsera grupal.`
-            }
-          </div>
-        </div>
-      `;
-
-    return;
-  }
-
-  const idsLeidos =
-    new Set(
-      state.leidos.keys()
-    );
-
-  const pendientes =
-    state.pasajeros
-      .filter(
-        (item) =>
-          !idsLeidos.has(
-            item.inscripcionId
-          )
-      );
-
-  $("resultadoFinal")
-    .innerHTML = `
-      <div class="person-header">
-        <h3>
-          ${leidos} / ${total}
-        </h3>
-
-        <p>
-          ${
-            pendientes.length
-              ? `${pendientes.length} pasajero(s) no fueron leídos.`
-              : "Todos los pasajeros fueron registrados."
-          }
-        </p>
-      </div>
-
-      ${
-        pendientes.length
-          ? `
-            <div class="info-section">
-              <h3>
-                No leídos
-              </h3>
-
-              <div class="passenger-list">
-                ${pendientes
-                  .map(
-                    (item) => `
-                      <div class="passenger-row">
-                        <span>
-                          <strong>
-                            ${esc(
-                              item.nombreCompleto ||
-                              "Sin nombre"
-                            )}
-                          </strong>
-
-                          <span>
-                            ${esc(
-                              item.documento ||
-                              ""
-                            )}
-                          </span>
-                        </span>
-                      </div>
-                    `
-                  )
-                  .join("")}
-              </div>
-            </div>
-          `
-          : ""
-      }
-    `;
+  const data = state.resultadoCierre || {};
+  const a = state.asistencia || {};
+  $("resultadoFinal").innerHTML = `
+    <h3>${esc(a.nombre || "Lista de asistencia")}</h3>
+    <p>${esc(fechaHistorial(a.finalizadaAt))}</p>
+    ${ubicacionHistorialHtml(a.ubicacionFin, "Ubicación")}
+    ${detallePersonasHtml(data)}`;
 }
 
 function procesarManual() {
+  if (state.cerrandoLista) return;
   const codigo =
     sanitizeCode(
       $("codigoManualInput")
@@ -1904,80 +1425,32 @@ function fechaHistorial(value) {
   });
 }
 
-function ubicacionHistorialHtml(ubicacion, etiqueta) {
-  if (
-    !ubicacion ||
-    ubicacion.lat == null ||
-    ubicacion.lng == null
-  ) {
-    return `<p>${escaparHistorial(etiqueta)}: sin ubicación registrada.</p>`;
+function ubicacionHistorialHtml(ubicacion, etiqueta = "Ubicación") {
+  if (!ubicacion || ubicacion.lat == null || ubicacion.lng == null) {
+    return "<p>Ubicación no disponible.</p>";
   }
-
-  const lat = Number(ubicacion.lat);
-  const lng = Number(ubicacion.lng);
-
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng) ||
-    lat < -90 || lat > 90 ||
-    lng < -180 || lng > 180
-  ) {
-    return `<p>${escaparHistorial(etiqueta)}: sin ubicación registrada.</p>`;
-  }
-
-  const url =
-    `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-
-  const accuracy = Number(ubicacion.accuracy);
-  const precision =
-    ubicacion.accuracy != null &&
-    Number.isFinite(accuracy)
-      ? ` · Precisión aproximada: ${Math.round(accuracy)} m`
-      : "";
-
-  return `
-    <p>
-      <a
-        href="${url}"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        📍 ${escaparHistorial(etiqueta)}
-      </a>
-      ${escaparHistorial(precision)}
-    </p>
-  `;
+  const lat = Number(ubicacion.lat), lng = Number(ubicacion.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+      Math.abs(lat) > 90 || Math.abs(lng) > 180) return "<p>Ubicación no disponible.</p>";
+  const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const coords = encodeURIComponent(`${lat},${lng}`);
+  const url = apple ? `https://maps.apple.com/?ll=${coords}&q=Ubicacion` :
+    `https://www.google.com/maps/search/?api=1&query=${coords}`;
+  return `<p><a href="${url}" target="_blank" rel="noopener noreferrer">📍 Ubicación</a></p>`;
 }
 
 function prepararEventosHistorial() {
-  if (historialAsistenciasState.eventosPreparados) {
-    return;
-  }
-
+  if (historialAsistenciasState.eventosPreparados) return;
   historialAsistenciasState.eventosPreparados = true;
-
-  $("btnActualizarHistorial")?.addEventListener("click", () => {
-    void cargarHistorialAsistencias();
+  $("btnActualizarHistorial")?.addEventListener("click", () => void cargarHistorialAsistencias());
+  $("btnMasHistorial")?.addEventListener("click", () => void cargarHistorialAsistencias(true));
+  $("historialAsistenciasContenido")?.addEventListener("click", (event) => {
+    const detail = event.target.closest("button[data-detalle-asistencia]");
+    const archive = event.target.closest("button[data-archivar-asistencia]");
+    if (detail) void mostrarDetalleHistorial(detail);
+    if (archive) void archivarListaHistorial(archive);
   });
-
-  $("btnMasHistorial")?.addEventListener("click", () => {
-    void cargarHistorialAsistencias(true);
-  });
-
-  $("historialAsistenciasContenido")?.addEventListener(
-    "click",
-    (event) => {
-      const button = event.target.closest(
-        "button[data-detalle-asistencia]"
-      );
-
-      if (!button) {
-        return;
-      }
-
-      void mostrarDetalleHistorial(button);
-    }
-  );
 }
 
 async function cargarHistorialAsistencias(continuar = false) {
@@ -2045,185 +1518,50 @@ async function cargarHistorialAsistencias(continuar = false) {
 
 function renderHistorialAsistencias() {
   const container = $("historialAsistenciasContenido");
-
-  $("btnMasHistorial")?.classList.toggle(
-    "hidden",
-    !historialAsistenciasState.hayMas
+  $("btnMasHistorial")?.classList.toggle("hidden", !historialAsistenciasState.hayMas);
+  const listas = historialAsistenciasState.registros.filter(
+    (item) => item.estado === "FINALIZADA" && item.archivada !== true
   );
-
-  if (!historialAsistenciasState.registros.length) {
-    container.innerHTML = `
-      <div class="empty-box">
-        Todavía no hay listas registradas para este grupo.
-      </div>
-    `;
-
+  if (!listas.length) {
+    container.innerHTML = '<div class="empty-box">No hay listas cerradas para mostrar.</div>';
     return;
   }
-
-  container.innerHTML = historialAsistenciasState.registros
-    .map((item) => {
-      const total = Number(item.totalEsperado || 0);
-      const leidos = Number(item.totalLeidos || 0);
-
-      const resumen = item.modalidad === "grupal"
-        ? (
-            item.grupoRegistrado
-              ? "✓ Pulsera grupal registrada."
-              : "Pulsera grupal pendiente de lectura."
-          )
-        : (
-            `Registrados: ${leidos} de ${total}` +
-            ` · Pendientes: ${Math.max(0, total - leidos)}`
-          );
-
-      const estado = item.estado === "FINALIZADA"
-        ? "Finalizada"
-        : item.estado === "ACTIVA"
-          ? "Activa"
-          : item.estado || "Sin estado";
-
-      return `
-        <article class="info-section">
-          <h3>${escaparHistorial(item.nombre)}</h3>
-
-          <p><strong>Estado:</strong> ${escaparHistorial(estado)}</p>
-
-          <p>
-            <strong>Inicio:</strong>
-            ${escaparHistorial(fechaHistorial(item.creadaAt))}
-          </p>
-
-          <p>
-            <strong>Finalización:</strong>
-            ${
-              item.finalizadaAt
-                ? escaparHistorial(fechaHistorial(item.finalizadaAt))
-                : "Sin finalización registrada"
-            }
-          </p>
-
-          ${ubicacionHistorialHtml(
-            item.ubicacionInicio,
-            "Ubicación de inicio"
-          )}
-
-          ${ubicacionHistorialHtml(
-            item.ubicacionFin,
-            "Ubicación de finalización"
-          )}
-
-          <div class="empty-box">
-            ${escaparHistorial(resumen)}
-          </div>
-
-          <button
-            type="button"
-            class="portal-button compact secondary"
-            data-detalle-asistencia="${escaparHistorial(item.id)}"
-          >
-            VER LECTURAS
-          </button>
-
-          <div
-            class="hidden"
-            data-contenido-detalle
-          ></div>
-
-          <div class="separator"></div>
-        </article>
-      `;
-    })
-    .join("");
+  container.innerHTML = listas.map((item) => `
+    <article class="info-section historial-lista">
+      <h3>${escaparHistorial(item.nombre)}</h3>
+      <p>${escaparHistorial(fechaHistorial(item.finalizadaAt))}</p>
+      ${ubicacionHistorialHtml(item.ubicacionFin)}
+      <p>${item.modalidad === "grupal" ?
+        (item.grupoRegistrado ? "Pulsera grupal registrada" : "Pulsera grupal no registrada") :
+        `Presentes: ${Number(item.totalLeidos || 0)} de ${Number(item.totalEsperado || 0)} · Ausentes: ${Math.max(0, Number(item.totalEsperado || 0) - Number(item.totalLeidos || 0))}`}</p>
+      <div class="lista-acciones">
+        <button type="button" class="portal-button compact secondary"
+          data-detalle-asistencia="${escaparHistorial(item.id)}">VER DETALLE</button>
+        <button type="button" class="text-button" data-archivar-asistencia="${escaparHistorial(item.id)}">Archivar lista</button>
+      </div>
+      <div class="hidden" data-contenido-detalle></div>
+    </article>`).join("");
 }
 
 async function mostrarDetalleHistorial(button) {
-  const container = button
-    .closest("article")
-    ?.querySelector("[data-contenido-detalle]");
-
-  if (!container) {
-    return;
-  }
-
+  const container = button.closest("article")?.querySelector("[data-contenido-detalle]");
+  if (!container) return;
   if (!container.classList.contains("hidden")) {
     container.classList.add("hidden");
-    button.textContent = "VER LECTURAS";
+    button.textContent = "VER DETALLE";
     return;
   }
-
-  container.classList.remove("hidden");
-  container.textContent = "Cargando lecturas...";
   button.disabled = true;
-
   try {
-    const response = await callApiSession(
-      "detalleAsistenciaHistorial",
-      {
-        asistenciaId: button.dataset.detalleAsistencia
-      }
-    );
-
-    const lecturas = Array.isArray(response.lecturas)
-      ? response.lecturas
-      : [];
-
-    const grupal = response.asistencia?.modalidad === "grupal";
-
-    container.innerHTML = lecturas.length
-      ? lecturas.map((lectura) => `
-          <div class="empty-box">
-            <p>
-              <strong>
-                ${escaparHistorial(
-                  grupal
-                    ? "Pulsera grupal"
-                    : lectura.nombreCompleto || "Pasajero"
-                )}
-              </strong>
-            </p>
-
-            <p>
-              Primera lectura:
-              ${escaparHistorial(
-                fechaHistorial(lectura.primeraLecturaAt)
-              )}
-            </p>
-
-            <p>
-              Última lectura:
-              ${escaparHistorial(
-                fechaHistorial(lectura.ultimaLecturaAt)
-              )}
-            </p>
-
-            ${ubicacionHistorialHtml(
-              lectura.ubicacion,
-              "Ubicación de la última lectura"
-            )}
-          </div>
-        `).join("")
-      : `
-          <div class="empty-box">
-            Esta lista todavía no tiene lecturas registradas.
-          </div>
-        `;
-
-    button.textContent = "OCULTAR LECTURAS";
+    const response = await callApiSession("detalleAsistenciaHistorial", {
+      asistenciaId: button.dataset.detalleAsistencia
+    });
+    container.innerHTML = detallePersonasHtml(response);
+    container.classList.remove("hidden");
+    button.textContent = "OCULTAR DETALLE";
   } catch (error) {
-    container.textContent =
-      error.message || "No fue posible consultar las lecturas.";
-
-    button.textContent = "REINTENTAR";
-
-    // Permite que el siguiente clic vuelva a consultar.
-    container.classList.add("hidden");
-
-    const estado = $("historialAsistenciasEstado");
-    estado.textContent = container.textContent;
-  } finally {
-    button.disabled = false;
-  }
+    $("historialAsistenciasEstado").textContent = error.message;
+  } finally { button.disabled = false; }
 }
 
 function generarNombreAsistencia() {
@@ -2630,4 +1968,111 @@ function esc(
       "'",
       "&#039;"
     );
+}
+
+function mostrarPreparacionLista() {
+  state.asistencia = null;
+  state.pasajeros = [];
+  state.leidos = new Map();
+  localStorage.removeItem(PORTAL_CONFIG.activeAttendanceKey);
+  localStorage.removeItem(PORTAL_CONFIG.attendanceModeKey);
+  $("prepararListaBox")?.classList.remove("hidden");
+  $("listaActivaBox")?.classList.add("hidden");
+  $("btnFinalizar")?.classList.add("hidden");
+  $("btnIniciarLectura")?.classList.add("hidden");
+  $("resumenAsistencia").innerHTML = "";
+  $("contadorPrincipal").textContent = "Sin lista abierta";
+  $("contadorDetalle").textContent = "Pon un nombre y pulsa Empezar lista.";
+  actualizarEstadoUbicacion("La ubicación se registra al cerrar la lista.");
+}
+
+function aplicarListaCompartida(response) {
+  const anteriores = state.asistencia?.id === response.asistencia?.id
+    ? state.leidos : new Map();
+  state.asistencia = response.asistencia;
+  state.pasajeros = response.pasajeros || [];
+  state.leidos = new Map([...anteriores, ...(response.leidos || []).filter((p) => p.inscripcionId)
+    .map((p) => [p.inscripcionId, p])]);
+  localStorage.setItem(PORTAL_CONFIG.activeAttendanceKey, state.asistencia.id);
+  localStorage.setItem(PORTAL_CONFIG.attendanceModeKey, "active");
+  $("prepararListaBox")?.classList.add("hidden");
+  $("listaActivaBox")?.classList.remove("hidden");
+  $("btnFinalizar")?.classList.remove("hidden");
+  if (!state.reading) $("btnIniciarLectura")?.classList.remove("hidden");
+  actualizarEstadoUbicacion("La ubicación se registra al cerrar la lista.");
+  renderAsistencia();
+}
+
+function mostrarListaCerrada(response) {
+  detenerLectura();
+  state.asistencia = response.asistencia;
+  state.resultadoCierre = response;
+  state.pasajeros = response.pasajeros || [];
+  state.leidos = new Map((response.leidos || []).filter((p) => p.inscripcionId)
+    .map((p) => [p.inscripcionId, p]));
+  localStorage.removeItem(PORTAL_CONFIG.activeAttendanceKey);
+  localStorage.removeItem(PORTAL_CONFIG.attendanceModeKey);
+  $("asistenciaPanel")?.classList.add("hidden");
+  $("finalizadaPanel")?.classList.remove("hidden");
+  renderResultadoFinal();
+  void cargarHistorialAsistencias();
+}
+
+function iniciarSincronizacionCompartida() {
+  // Solo consultar cuando esta pestaña está visible; nunca crear desde el timer.
+  const actualizar = async () => {
+    if (document.hidden || state.actualizandoLista || state.processing ||
+        state.procesandoCola || state.cerrandoLista || state.iniciandoLista ||
+        state.asistencia?.estado === "FINALIZADA") return;
+    state.actualizandoLista = true;
+    const id = state.asistencia?.id || "";
+    try {
+      const response = await callApiSession("estadoAsistencia", id ? { asistenciaId: id } : {});
+      if (state.processing || state.procesandoCola || state.cerrandoLista || state.iniciandoLista) return;
+      if (id && state.asistencia?.id !== id) return;
+      if (response.asistencia?.estado === "FINALIZADA") mostrarListaCerrada(response);
+      else if (response.asistencia?.estado === "ACTIVA") aplicarListaCompartida(response);
+      else if (id) { detenerLectura(); mostrarPreparacionLista(); }
+    } catch (error) {
+      if (error.status === 401) { detenerLectura(); mostrarSinSesion(error.message); }
+    } finally { state.actualizandoLista = false; }
+  };
+  setInterval(() => void actualizar(), 6000);
+  document.addEventListener("visibilitychange", () => void actualizar());
+}
+
+function ubicacionActualDeCierre() {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+    (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude,
+      accuracy: p.coords.accuracy }),
+    () => resolve(null),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  ));
+}
+
+function detallePersonasHtml(response) {
+  if (response.asistencia?.modalidad === "grupal") {
+    return '<p>La pulsera grupal no identifica presentes y ausentes individualmente.</p>';
+  }
+  const bloque = (titulo, items = []) => `<h4>${titulo} (${items.length})</h4>
+    ${items.length ? `<ul class="lista-nombres">${items.map((p) =>
+      `<li>${esc(p.nombreCompleto || "Sin nombre")}</li>`).join("")}</ul>` : "<p>Ninguno.</p>"}`;
+  return `${response.nominaHistorica === false ?
+    '<p class="section-copy">Lista anterior: nombres y ausentes calculados con la nómina actual.</p>' : ""}
+    ${bloque("Presentes", response.presentes)}${bloque("Ausentes", response.ausentes)}`;
+}
+
+async function archivarListaHistorial(button) {
+  if (!confirm("¿Archivar esta lista y quitarla del historial del grupo?")) return;
+  button.disabled = true;
+  try {
+    await callApiSession("archivarAsistencia", { asistenciaId: button.dataset.archivarAsistencia });
+    historialAsistenciasState.registros = historialAsistenciasState.registros.filter(
+      (item) => item.id !== button.dataset.archivarAsistencia
+    );
+    renderHistorialAsistencias();
+  } catch (error) {
+    $("historialAsistenciasEstado").textContent = error.message;
+  } finally { button.disabled = false; }
 }
