@@ -1,0 +1,110 @@
+================================================================================
+1 · ARCHIVO NUEVO EN COMUNICACIONES: anulacion.html
+================================================================================
+INICIO DEL CÓDIGO
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#202957">
+  <meta name="referrer" content="no-referrer">
+  <title>Solicitud de anulación · Turismo Rai Trai</title>
+  <link rel="icon" href="./Logo Raitrai.png" type="image/png">
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#151c40;background:#f4f6fb;--azul:#202957;--borde:#d5dbea}
+    *{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:24px auto 64px;padding:0 12px}
+    header,.card{background:white;border:1px solid var(--borde);border-radius:18px;padding:26px;margin-bottom:16px}
+    header{border-top:9px solid var(--azul)}header img{width:140px;max-height:100px;object-fit:contain}
+    h1{font-size:27px;line-height:1.2}h2{font-size:21px;color:var(--azul)}p,li{line-height:1.6}
+    .muted,small{color:#667085}label{display:block;font-weight:700;margin:17px 0 7px}
+    input,select,textarea,button{font:inherit}input,select,textarea{width:100%;padding:12px;border:1px solid #bcc6d9;border-radius:9px;background:white;color:#151c40}
+    input:focus,select:focus,textarea:focus{outline:3px solid #e9eef9;border-color:#566da8}textarea{min-height:120px;resize:vertical}
+    button{border:0;border-radius:10px;padding:13px 18px;background:var(--azul);color:white;font-weight:700;cursor:pointer;margin-top:16px;min-height:46px}
+    button.secondary{background:#e9eef9;color:var(--azul)}button:disabled{opacity:.55;cursor:wait}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.notice{padding:15px;background:#e9eef9;border-radius:10px;line-height:1.6;margin:14px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+    .error{background:#fff0f0;color:#991b1b}.success{background:#eaf8ef;color:#175c35}
+    .check{display:flex;gap:12px;align-items:flex-start;font-weight:400;line-height:1.55}.check input{width:20px;min-width:20px;margin-top:3px}
+    .hidden{display:none!important}fieldset{border:0;margin:0;padding:0;min-width:0}a{color:var(--azul)}
+    #resumen{white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}#estado{position:relative}input[readonly]{background:#f4f6fb}
+    @media(max-width:560px){main{margin-top:10px}.card,header{padding:19px}.grid{grid-template-columns:1fr}button{width:100%}h1{font-size:24px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="./Logo Raitrai.png" alt="Turismo Rai Trai">
+    <h1>Solicitud de anulación del viaje</h1>
+    <p>Completa este formulario para solicitar formalmente la anulación de la participación de una persona en el viaje.</p>
+    <p class="muted">La solicitud inicia una revisión administrativa. Administración te informará por escrito el resultado y si corresponde una devolución.</p>
+  </header>
+  <section id="identificacion" class="card">
+    <h2>1. Identifica el grupo y verifica tu correo</h2>
+    <p>Ingresa el ID del grupo que figura en las comunicaciones del viaje. Puedes consultar grupos de cualquier año.</p>
+    <label for="idGrupo">ID del grupo *</label><input id="idGrupo" maxlength="80" autocomplete="off" placeholder="Ej.: 10655">
+    <button id="buscar" type="button">Consultar grupo</button>
+    <p id="grupoDetalle" class="notice hidden"></p>
+    <div class="grid">
+      <div><label for="rutPasajero">RUT de la persona que viaja *</label><input id="rutPasajero" maxlength="14" placeholder="12345678-5" autocomplete="off"></div>
+      <div><label for="correoVerificacion">Correo registrado en la inscripción *</label><input id="correoVerificacion" type="email" maxlength="254" autocomplete="email"></div>
+    </div>
+    <p class="muted">Para estudiantes, utiliza uno de los correos de apoderados registrados. Para profesores o adultos acompañantes, también puedes usar el correo personal registrado. Si ya no tienes acceso, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a>.</p>
+    <button id="pedirCodigo" type="button" disabled>Solicitar código por correo</button>
+    <div id="codigoBloque" class="hidden">
+      <label for="codigo">Código de seis dígitos *</label><input id="codigo" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6">
+      <button id="verificar" type="button">Verificar y continuar</button>
+    </div>
+  </section>
+  <form id="solicitud" class="hidden">
+    <fieldset id="campos">
+      <section class="card">
+        <h2>2. Pasajero y condiciones</h2><p id="viaje" class="notice"></p>
+        <div id="condiciones"></div>
+        <p class="muted">Los porcentajes y plazos aplicables son los de tu contrato. Si necesitas una copia o aclaración, solicítala a Rai Trai antes de enviar.</p>
+      </section>
+      <section class="card">
+        <h2>3. Datos del solicitante</h2>
+        <label for="nombre">Nombre completo *</label><input id="nombre" autocomplete="name" minlength="3" maxlength="160" required>
+        <div class="grid">
+          <div><label for="rutSolicitante">RUT del solicitante *</label><input id="rutSolicitante" maxlength="14" required></div>
+          <div><label for="relacion">Relación con el pasajero *</label><select id="relacion" required><option value="">Selecciona</option><option value="madre">Madre</option><option value="padre">Padre</option><option value="apoderado">Apoderado(a)</option><option value="representante">Representante autorizado</option><option value="pasajero">Soy la persona que viaja</option></select></div>
+          <div><label for="telefono">Celular *</label><input id="telefono" type="tel" autocomplete="tel" value="+569" pattern="\+569[0-9]{8}" maxlength="12" required></div>
+          <div><label for="correo">Correo verificado *</label><input id="correo" type="email" readonly required></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>4. Datos para una eventual transferencia</h2>
+        <p>Todos estos datos son obligatorios. La cuenta debe pertenecer al solicitante. Informarla no garantiza que exista una devolución.</p>
+        <button id="usarDatos" class="secondary" type="button">Usar mis datos como titular</button>
+        <label for="nombreTitular">Nombre completo del titular *</label><input id="nombreTitular" minlength="3" maxlength="160" required>
+        <div class="grid">
+          <div><label for="rutTitular">RUT del titular *</label><input id="rutTitular" maxlength="14" required></div>
+          <div><label for="banco">Banco o institución financiera *</label><input id="banco" minlength="2" maxlength="100" required></div>
+          <div><label for="tipoCuenta">Tipo de cuenta *</label><select id="tipoCuenta" required><option value="">Selecciona</option><option value="corriente">Cuenta corriente</option><option value="vista">Cuenta vista</option><option value="ahorro">Cuenta de ahorro</option><option value="rut">CuentaRUT</option></select></div>
+          <div><label for="numeroCuenta">Número de cuenta *</label><input id="numeroCuenta" type="text" inputmode="numeric" pattern="[0-9]{3,30}" minlength="3" maxlength="30" required></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>5. Motivo y antecedentes</h2>
+        <label for="motivo">Motivo principal *</label><select id="motivo" required><option value="">Selecciona</option><option value="personales">Motivos personales</option><option value="medicos">Motivos médicos</option><option value="economicos">Motivos económicos</option><option value="cambio_establecimiento">Cambio de establecimiento</option><option value="desistimiento">Desistimiento voluntario</option><option value="otro">Otro</option></select>
+        <label for="detalle">Explica el motivo de tu solicitud *</label><textarea id="detalle" minlength="10" maxlength="5000" required></textarea>
+        <label for="adjuntos">Antecedentes adjuntos (opcional)</label><input id="adjuntos" type="file" multiple accept="application/pdf,image/jpeg,image/png">
+        <p class="muted">Hasta tres archivos PDF, JPG o PNG, de un máximo de 600 KB cada uno. Adjunta solo antecedentes necesarios para gestionar esta solicitud.</p>
+      </section>
+      <section class="card">
+        <h2>6. Revisa y envía tu solicitud</h2>
+        <div id="declaraciones"></div>
+        <button id="revisar" class="secondary" type="button">Revisar mis datos</button>
+        <div id="revision" class="hidden"><div id="resumen" class="notice"></div>
+          <p>Al presionar el siguiente botón enviarás formalmente la solicitud. Se conservarán la fecha y hora de recepción y las declaraciones aceptadas.</p>
+          <button id="enviar" type="submit">Enviar solicitud de anulación</button>
+        </div>
+      </section>
+    </fieldset>
+  </form>
+  <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Solicitud recibida</h2><p id="recibo" class="notice success"></p><p>Se programó un respaldo a tu correo. Revisa también spam. Conserva el folio: tu solicitud permanece recibida aunque el correo se retrase.</p><p>Administración informará por escrito el resultado de la evaluación. Para aportar antecedentes o corregir datos, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
+  <div id="estado" class="notice hidden" role="status" aria-live="polite" tabindex="-1"></div>
+</main>
+<script type="module" src="./anulacion.js"></script>
+</body>
+</html>
