@@ -21,6 +21,9 @@
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.notice{padding:15px;background:#e9eef9;border-radius:10px;line-height:1.6;margin:14px 0;white-space:pre-wrap;overflow-wrap:anywhere}
     .error{background:#fff0f0;color:#991b1b}.success{background:#eaf8ef;color:#175c35}
     .check{display:flex;gap:12px;align-items:flex-start;font-weight:400;line-height:1.55}.check input{width:20px;min-width:20px;margin-top:3px}
+    .resultado-grupo{display:block;width:100%;text-align:left;white-space:normal;background:#f8faff;color:#202957;border:1px solid #d5dbea;margin-top:10px;line-height:1.5}
+    .resultado-grupo:hover,.resultado-grupo:focus-visible{background:#e9eef9;outline:2px solid #566da8}
+    #grupoDetalle{border-left:4px solid #23834b}
     .hidden{display:none!important}fieldset{border:0;margin:0;padding:0;min-width:0}a{color:var(--azul)}
     #resumen{white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}#estado{position:relative}input[readonly]{background:#f4f6fb}
     @media(max-width:560px){main{margin-top:10px}.card,header{padding:19px}.grid{grid-template-columns:1fr}button{width:100%}h1{font-size:24px}}
@@ -32,13 +35,22 @@
     <img src="./Logo Raitrai.png" alt="Turismo Rai Trai">
     <h1>Solicitud de anulación del viaje</h1>
     <p>Completa este formulario para solicitar formalmente la anulación de la participación de una persona en el viaje.</p>
-    <p class="muted">La solicitud inicia una revisión administrativa. Administración te informará por escrito el resultado y si corresponde una devolución.</p>
+    <p class="muted">La solicitud inicia una revisión administrativa y se te informará por escrito el resultado y si corresponde una devolución o no.</p>
   </header>
   <section id="identificacion" class="card">
     <h2>1. Identifica el grupo y verifica tu correo</h2>
-    <p>Ingresa el ID del grupo que figura en las comunicaciones del viaje. Puedes consultar grupos de cualquier año.</p>
-    <label for="idGrupo">ID del grupo *</label><input id="idGrupo" maxlength="80" autocomplete="off" placeholder="Ej.: 10655">
-    <button id="buscar" type="button">Consultar grupo</button>
+    <p>Escribe el nombre del colegio o el ID del grupo. Luego selecciona el curso y año de viaje que corresponden. Puedes buscar en cualquier año.</p>
+    <div class="grid">
+      <div><label for="idGrupo">Busca tu colegio o grupo *</label>
+        <input id="idGrupo" type="search" maxlength="120" autocomplete="off" placeholder="Ej.: San Ignacio o 10655" aria-describedby="ayudaBusqueda" aria-controls="grupoResultados">
+      </div>
+      <div><label for="anoBusqueda">Año del viaje (opcional)</label>
+        <input id="anoBusqueda" type="number" inputmode="numeric" min="1900" max="2200" placeholder="Todos los años">
+      </div>
+    </div>
+    <p id="ayudaBusqueda" class="muted">También puedes escribir colegio, curso y año juntos: Colegio 3A 2027. Presiona Buscar grupos o la tecla Enter.</p>
+    <button id="buscar" type="button">Buscar grupos</button>
+    <div id="grupoResultados" role="region" aria-label="Resultados de grupos" aria-live="polite"></div>
     <p id="grupoDetalle" class="notice hidden"></p>
     <div class="grid">
       <div><label for="rutPasajero">RUT de la persona que viaja *</label><input id="rutPasajero" maxlength="14" placeholder="12345678-5" autocomplete="off"></div>
@@ -101,6 +113,6 @@
   <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Solicitud recibida</h2><p id="recibo" class="notice success"></p><p>Se programó un respaldo a tu correo. Revisa también spam. Conserva el folio: tu solicitud permanece recibida aunque el correo se retrase.</p><p>Administración informará por escrito el resultado de la evaluación. Para aportar antecedentes o corregir datos, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
   <div id="estado" class="notice hidden" role="status" aria-live="polite" tabindex="-1"></div>
 </main>
-<script type="module" src="./anulacion.js"></script>
+<script type="module" src="./anulacion.js?v=20261015-buscador2"></script>
 </body>
 </html>
