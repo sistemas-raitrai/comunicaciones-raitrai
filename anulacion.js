@@ -18,7 +18,7 @@ async function api(accion, payload = {}) {
 async function accion(fn) {
   if (state.busy) return;
   state.busy = true;
-  const buttons = [...document.querySelectorAll("button, #identificacion input")].map(b => [b, b.disabled]);
+  const buttons = [...document.querySelectorAll("button, #identificacion input, #identificacion select")].map(b => [b, b.disabled]);
   buttons.forEach(([b]) => b.disabled = true);
   try { await fn(); } catch(e) { mensaje(e.message, true); }
   finally { state.busy = false; buttons.forEach(([b, disabled]) => b.disabled = disabled); $("pedirCodigo").disabled = !state.grupo; }
@@ -32,14 +32,72 @@ function rut(v) {
   return (d === 11 ? "0" : d === 10 ? "K" : String(d)) === s.slice(-1) ? `${n}-${s.slice(-1)}` : "";
 }
 function etiqueta(g) { return `${g.colegio} · ${g.curso} · ${g.anoViaje} · ${g.destino} · ID ${g.idGrupo}`; }
-$("buscar").addEventListener("click", () => accion(async () => {
-  const d = await api("consultarGrupo", { idGrupo: val("idGrupo") });
-  state.grupo = d.grupo; $("grupoDetalle").textContent = etiqueta(d.grupo); $("grupoDetalle").classList.remove("hidden");
-  mensaje("Confirma que este es el grupo correcto y solicita tu código.");
-}));
-for (const id of ["idGrupo", "rutPasajero", "correoVerificacion"]) $(id).addEventListener("input", () => {
-  state.reto = ""; $("codigoBloque").classList.add("hidden");
-  if (id === "idGrupo") { state.grupo = null; $("grupoDetalle").classList.add("hidden"); $("pedirCodigo").disabled = true; }
+function limpiarGrupoSeleccionado() {
+  state.grupo = null;
+  state.reto = "";
+  $("grupoDetalle").textContent = "";
+  $("grupoDetalle").classList.add("hidden");
+  $("codigoBloque").classList.add("hidden");
+  $("codigo").value = "";
+  $("pedirCodigo").disabled = true;
+}
+function seleccionarGrupo(grupo) {
+  if (state.busy) return;
+  limpiarGrupoSeleccionado();
+  state.grupo = grupo;
+  $("grupoDetalle").textContent = `Grupo seleccionado: ${etiqueta(grupo)}`;
+  $("grupoDetalle").classList.remove("hidden");
+  $("grupoResultados").replaceChildren();
+  $("pedirCodigo").disabled = false;
+  mensaje("Grupo seleccionado. Ingresa el RUT de la persona que viaja y el correo registrado en su inscripción.");
+  $("rutPasajero").focus();
+}
+async function buscarGrupos() {
+  await accion(async () => {
+    limpiarGrupoSeleccionado();
+    const resultados = $("grupoResultados");
+    resultados.replaceChildren();
+    const query = val("idGrupo");
+    if (query.length < 2) throw new Error("Escribe al menos dos letras del colegio o el ID del grupo.");
+    const year = val("anoBusqueda");
+    if (year && !$("anoBusqueda").reportValidity()) throw new Error("Revisa el año del viaje.");
+    mensaje("Buscando grupos. La primera consulta puede tardar unos segundos.");
+    const d = await api("buscarGrupos", { busqueda: query, anoViaje: year });
+    if (!Array.isArray(d.grupos)) throw new Error("No pudimos interpretar los resultados. Intenta nuevamente.");
+    if (!d.grupos.length) {
+      resultados.textContent = "No encontramos coincidencias. Prueba con una parte del nombre del colegio o revisa el año ingresado.";
+      mensaje("No encontramos grupos con esa búsqueda.");
+      return;
+    }
+    const aviso = document.createElement("p");
+    aviso.textContent = d.hayMas
+      ? "Hay más de 25 coincidencias. Se muestran las primeras 25. Agrega curso o año para acotar la búsqueda y selecciona tu grupo."
+      : "Selecciona tu grupo y comprueba el curso y año del viaje:";
+    resultados.append(aviso);
+    for (const grupo of d.grupos) {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "resultado-grupo";
+      boton.textContent = etiqueta(grupo);
+      boton.addEventListener("click", () => seleccionarGrupo(grupo));
+      resultados.append(boton);
+    }
+    mensaje("Selecciona el grupo correcto entre los resultados.");
+  });
+}
+$("buscar").addEventListener("click", buscarGrupos);
+for (const id of ["idGrupo", "anoBusqueda"]) {
+  $(id).addEventListener("input", () => {
+    limpiarGrupoSeleccionado();
+    $("grupoResultados").replaceChildren();
+  });
+  $(id).addEventListener("keydown", event => {
+    if (event.key === "Enter") { event.preventDefault(); buscarGrupos(); }
+  });
+}
+for (const id of ["rutPasajero", "correoVerificacion"]) $(id).addEventListener("input", () => {
+  state.reto = "";
+  $("codigoBloque").classList.add("hidden");
 });
 $("pedirCodigo").addEventListener("click", () => accion(async () => {
   if (!state.grupo) throw new Error("Consulta y confirma el grupo.");
