@@ -1,18 +1,18 @@
 const API_URL = "https://southamerica-west1-sist-op-rt.cloudfunctions.net/solicitudesAnulacionPublica";
 const $ = id => document.getElementById(id);
 const val = id => $(id).value.trim();
-const state = { grupo: null, reto: "", session: null, busy: false, revisado: "", pending: null };
-function mensaje(text, error = false) {
+const state = { grupo: null, reto: "", session: null, busy: false, revisado: "", pending: null, seleccionCorreo: "" };
+function mensaje(text, error = false, enfocar = true) {
   $("estado").textContent = text;
   $("estado").className = `notice ${error ? "error" : ""}`;
-  $("estado").focus({ preventScroll: true });
+  if (enfocar) $("estado").focus({ preventScroll: true });
 }
 async function api(accion, payload = {}) {
   let r;
   try { r = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion, ...payload }) }); }
   catch { throw new Error("No pudimos conectar. Si estabas enviando, reintenta con los mismos datos para recuperar el folio sin duplicar la solicitud."); }
   let d; try { d = await r.json(); } catch { throw new Error("El servidor devolvió una respuesta inesperada. Reintenta."); }
-  if (!r.ok || !d.ok) throw new Error(d.error || "No pudimos completar la operación.");
+  if (!r.ok || !d.ok) { const e = new Error(d.error || "No pudimos completar la operación."); e.campo = d.campo || ""; throw e; }
   return d;
 }
 async function accion(fn) {
@@ -20,8 +20,10 @@ async function accion(fn) {
   state.busy = true;
   const buttons = [...document.querySelectorAll("button, #identificacion input, #identificacion select")].map(b => [b, b.disabled]);
   buttons.forEach(([b]) => b.disabled = true);
-  try { await fn(); } catch(e) { mensaje(e.message, true); }
+  let error;
+  try { await fn(); } catch(e) { error = e; }
   finally { state.busy = false; buttons.forEach(([b, disabled]) => b.disabled = disabled); $("pedirCodigo").disabled = !state.grupo; }
+  if (error) presentarError(error);
 }
 function rut(v) {
   const s = String(v).toUpperCase().replace(/[^0-9K]/g, "");
@@ -34,7 +36,7 @@ function rut(v) {
 function etiqueta(g) { return `${g.colegio} · ${g.curso} · ${g.anoViaje} · ${g.destino} · ID ${g.idGrupo}`; }
 function limpiarGrupoSeleccionado() {
   state.grupo = null;
-  state.reto = "";
+  reiniciarVerificacion();
   $("grupoDetalle").textContent = "";
   $("grupoDetalle").classList.add("hidden");
   $("codigoBloque").classList.add("hidden");
@@ -49,7 +51,7 @@ function seleccionarGrupo(grupo) {
   $("grupoDetalle").classList.remove("hidden");
   $("grupoResultados").replaceChildren();
   $("pedirCodigo").disabled = false;
-  mensaje("Grupo seleccionado. Ingresa el RUT de la persona que viaja y el correo registrado en su inscripción.");
+  mensaje("Grupo seleccionado. Ingresa el RUT de la persona que viaja, con guion y dígito verificador.");
   $("rutPasajero").focus();
 }
 async function buscarGrupos() {
@@ -60,7 +62,7 @@ async function buscarGrupos() {
     const query = val("idGrupo");
     if (query.length < 2) throw new Error("Escribe al menos dos letras del colegio o el ID del grupo.");
     const year = val("anoBusqueda");
-    if (year && !$("anoBusqueda").reportValidity()) throw new Error("Revisa el año del viaje.");
+    if (year && !$("anoBusqueda").checkValidity()) errorCampo("anoBusqueda", "El año debe ser el actual o uno futuro; déjalo vacío para buscar en todos los años habilitados.");
     mensaje("Buscando grupos. La primera consulta puede tardar unos segundos.");
     const d = await api("buscarGrupos", { busqueda: query, anoViaje: year });
     if (!Array.isArray(d.grupos)) throw new Error("No pudimos interpretar los resultados. Intenta nuevamente.");
@@ -95,19 +97,53 @@ for (const id of ["idGrupo", "anoBusqueda"]) {
     if (event.key === "Enter") { event.preventDefault(); buscarGrupos(); }
   });
 }
-for (const id of ["rutPasajero", "correoVerificacion"]) $(id).addEventListener("input", () => {
+function reiniciarVerificacion() {
   state.reto = "";
+  state.seleccionCorreo = "";
   $("codigoBloque").classList.add("hidden");
-});
+  $("destinosCorreo").replaceChildren(); $("destinosCorreo").classList.add("hidden");
+  $("avisoCorreo").textContent = ""; $("avisoCorreo").classList.add("hidden");
+  $("codigo").value = "";
+}
+function mostrarRetoCorreo(d) {
+  state.reto = d.verificacionId;
+  $("destinosCorreo").classList.add("hidden");
+  $("avisoCorreo").textContent = d.mensaje;
+  $("avisoCorreo").classList.remove("hidden");
+  $("codigo").value = "";
+  $("codigoBloque").classList.remove("hidden");
+  mensaje(d.mensaje, false, false);
+}
+$("rutPasajero").addEventListener("input", () => { reiniciarVerificacion(); limpiarErrorCampo("rutPasajero"); });
 $("pedirCodigo").addEventListener("click", () => accion(async () => {
-  if (!state.grupo) throw new Error("Consulta y confirma el grupo.");
-  if (!rut(val("rutPasajero"))) throw new Error("Revisa el RUT de la persona que viaja.");
-  if (!val("correoVerificacion") || !$("correoVerificacion").reportValidity()) throw new Error("Revisa el correo registrado.");
-  const d = await api("iniciarVerificacion", { idGrupo: state.grupo.groupDocId, rutPasajero: rut(val("rutPasajero")), correo: val("correoVerificacion") });
-  state.reto = d.verificacionId; $("codigo").value = ""; $("codigoBloque").classList.remove("hidden"); mensaje(d.mensaje);
+  if (!state.grupo) errorCampo("idGrupo", "Busca y selecciona tu grupo antes de continuar.");
+  if (!rutConGuion(val("rutPasajero"))) errorCampo("rutPasajero", "Ingresa el RUT de la persona que viaja con guion y dígito verificador, por ejemplo 12345678-5.");
+  if (!rut(val("rutPasajero"))) errorCampo("rutPasajero", "El dígito verificador del RUT no es correcto. Compruébalo antes de continuar.");
+  limpiarErrorCampo("rutPasajero");
+  reiniciarVerificacion();
+  const d = await api("prepararVerificacion", { idGrupo: state.grupo.groupDocId, rutPasajero: rut(val("rutPasajero")) });
+  if (d.verificacionId) { mostrarRetoCorreo(d); return; }
+  if (!d.seleccionId || !Array.isArray(d.destinos) || !d.destinos.length) throw new Error("No encontramos un correo disponible. Contacta a anulaciones@raitrai.cl.");
+  state.seleccionCorreo = d.seleccionId;
+  const box = $("destinosCorreo"); box.replaceChildren(); box.classList.remove("hidden");
+  const p = document.createElement("p"); p.textContent = d.mensaje; box.append(p);
+  for (const destino of d.destinos) {
+    const boton = document.createElement("button"); boton.type = "button"; boton.className = "resultado-grupo";
+    boton.textContent = `Enviar código a ${destino.correoOculto}`;
+    boton.addEventListener("click", () => accion(async () => {
+      const result = await api("enviarCodigoSeleccionado", { seleccionId: state.seleccionCorreo, destino: destino.id });
+      mostrarRetoCorreo(result);
+    }));
+    box.append(boton);
+  }
+  mensaje(d.mensaje, false, false);
 }));
+$("rutPasajero").addEventListener("keydown", event => {
+  if (event.key === "Enter") { event.preventDefault(); if (!state.busy) $("pedirCodigo").click(); }
+});
 $("verificar").addEventListener("click", () => accion(async () => {
-  if (!state.reto) throw new Error("Solicita primero un código.");
+  if (!state.reto) errorCampo("rutPasajero", "Consulta el RUT para solicitar un código al correo registrado.");
+  if (!/^\d{6}$/.test(val("codigo"))) errorCampo("codigo", "Ingresa los seis dígitos del código recibido por correo.");
   const d = await api("verificarCodigo", { verificacionId: state.reto, codigo: val("codigo") });
   state.session = d;
   $("viaje").textContent = `${etiqueta(d.grupo)}\nPasajero: ${d.pasajero.nombre} · RUT ${d.pasajero.rut}`;
@@ -133,22 +169,117 @@ function datos() {
     transferencia: { nombreTitular: val("nombreTitular"), rutTitular: rut(val("rutTitular")), banco: val("banco"), tipoCuenta: val("tipoCuenta"), numeroCuenta: val("numeroCuenta") },
     motivo: val("motivo"), detalle: val("detalle"), declaraciones: declarations };
 }
+function rutConGuion(value) {
+  return /^\d{7,8}-[0-9kK]$/.test(String(value || "").trim().replace(/\./g, ""));
+}
+function limpiarErrorCampo(id) {
+  const campo = $(id);
+  if (!campo) return;
+  campo.removeAttribute("aria-invalid");
+  const errorId = `error_${id}`;
+  $(errorId)?.remove();
+  const described = (campo.getAttribute("aria-describedby") || "").split(/\s+/).filter(v => v && v !== errorId);
+  if (described.length) campo.setAttribute("aria-describedby", described.join(" "));
+  else campo.removeAttribute("aria-describedby");
+  for (const item of $("erroresFormulario").querySelectorAll("[data-error-campo]")) {
+    if (item.dataset.errorCampo === id) item.remove();
+  }
+  if (!$("erroresFormulario").querySelector("[data-error-campo]")) $("erroresFormulario").classList.add("hidden");
+}
+function limpiarErrores() {
+  for (const el of document.querySelectorAll('[aria-invalid="true"]')) limpiarErrorCampo(el.id);
+  $("erroresFormulario").replaceChildren();
+  $("erroresFormulario").classList.add("hidden");
+}
+function marcarError(id, texto) {
+  const el = $(id);
+  if (!el) return;
+  limpiarErrorCampo(id);
+  el.setAttribute("aria-invalid", "true");
+  const error = document.createElement("p"); error.id = `error_${id}`; error.className = "campo-error"; error.textContent = texto;
+  const anchor = el.type === "checkbox" ? el.closest("label") : el;
+  anchor.after(error);
+  el.setAttribute("aria-describedby", [el.getAttribute("aria-describedby"), error.id].filter(Boolean).join(" "));
+}
+function enfocarCampo(id) {
+  const el = $(id); if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.focus({ preventScroll: true });
+}
+function errorCampo(id, texto) { const e = new Error(texto); e.campo = id; throw e; }
+function presentarError(e) {
+  mensaje(e.message, true, false);
+  if (e.errores) {
+    const box = $("erroresFormulario"); box.replaceChildren();
+    const intro = document.createElement("p"); intro.textContent = "Revisa lo siguiente para continuar:"; box.append(intro);
+    const lista = document.createElement("ul");
+    for (const item of e.errores) {
+      marcarError(item.id, item.texto);
+      const li = document.createElement("li"); li.dataset.errorCampo = item.id;
+      const link = document.createElement("a"); link.href = `#${item.id}`; link.textContent = item.texto;
+      link.addEventListener("click", event => { event.preventDefault(); enfocarCampo(item.id); });
+      li.append(link); lista.append(li);
+    }
+    box.append(lista); box.classList.remove("hidden"); enfocarCampo(e.errores[0].id);
+  } else if (e.campo && $(e.campo)) { marcarError(e.campo, e.message); enfocarCampo(e.campo); }
+  else $("estado").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function erroresDatosFormulario() {
+  const errores = new Map();
+  const add = (id, texto) => { if (!errores.has(id)) errores.set(id, { id, texto }); };
+  for (const el of $("solicitud").querySelectorAll("input, select, textarea")) {
+    if (el.disabled || el.type === "file" || !el.id) continue;
+    const label = document.querySelector(`label[for="${el.id}"]`);
+    const nombre = (label?.textContent || el.id).replace(/\s*\*\s*$/, "").trim();
+    const value = String(el.value || "").trim();
+    if (el.type === "checkbox") {
+      if (el.required && !el.checked) {
+        const textos = { solicita: "Debes confirmar que solicitas formalmente la anulación.", representa: "Debes aceptar la declaración de representación y veracidad de los datos.", transferencia: "Debes aceptar la declaración de titularidad y uso de la cuenta bancaria.", tratamiento: "Debes autorizar el uso de los datos para tramitar la solicitud." };
+        add(el.id, textos[el.id.replace("decl_", "")] || "Debes aceptar esta declaración para continuar.");
+      }
+      continue;
+    }
+    if (el.required && !value) { add(el.id, `Completa ${nombre.toLowerCase()}.`); continue; }
+    const min = Number(el.getAttribute("minlength") || 0);
+    if (min && value.length < min) add(el.id, `${nombre}: escribe al menos ${min} caracteres; llevas ${value.length}.`);
+    const max = Number(el.getAttribute("maxlength") || 0);
+    if (max && value.length > max) add(el.id, `${nombre}: usa como máximo ${max} caracteres.`);
+    if (el.validity.typeMismatch) add(el.id, `${nombre}: ingresa un correo válido, por ejemplo nombre@gmail.com.`);
+    if (el.validity.patternMismatch) add(el.id, el.id === "telefono"
+      ? "Celular: ingresa +569 seguido de ocho dígitos, por ejemplo +56912345678."
+      : el.id === "numeroCuenta" ? "Número de cuenta: ingresa entre 3 y 30 dígitos, sin puntos, espacios ni guiones."
+      : `Revisa el formato de ${nombre.toLowerCase()}.`);
+  }
+  for (const [id, nombre] of [["rutSolicitante", "RUT del solicitante"], ["rutTitular", "RUT del titular"]]) {
+    if (val(id) && !rutConGuion(val(id))) add(id, `${nombre}: usa guion y dígito verificador, por ejemplo 12345678-5.`);
+    else if (val(id) && !rut(val(id))) add(id, `${nombre}: el dígito verificador no es correcto.`);
+  }
+  const normal = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase();
+  if (rut(val("rutSolicitante")) && rut(val("rutTitular")) && rut(val("rutSolicitante")) !== rut(val("rutTitular"))) add("rutTitular", "La cuenta debe pertenecer al solicitante: el RUT del titular debe ser igual al del solicitante.");
+  if (val("nombre") && val("nombreTitular") && normal(val("nombre")) !== normal(val("nombreTitular"))) add("nombreTitular", "El nombre del titular debe coincidir con el del solicitante. Puedes usar el botón Usar mis datos como titular.");
+  const files = [...$("adjuntos").files];
+  if (files.length > 3) add("adjuntos", "Puedes adjuntar como máximo tres archivos. Retira los adicionales.");
+  for (const f of files) {
+    if (f.size > 600 * 1024) add("adjuntos", `El archivo ${f.name} pesa más de 600 KB. Reduce su tamaño antes de adjuntarlo.`);
+    if (!["application/pdf", "image/png", "image/jpeg"].includes(f.type)) add("adjuntos", `El archivo ${f.name} no es PDF, JPG ni PNG. Usa uno de esos formatos.`);
+  }
+  return [...errores.values()];
+}
 function validar() {
   if (!state.session) throw new Error("Primero verifica tu correo.");
-  if (!$("solicitud").reportValidity()) throw new Error("Completa todos los campos y declaraciones obligatorias.");
-  const d = datos();
-  if (!d.solicitante.rut || !d.transferencia.rutTitular) throw new Error("Revisa los RUT del solicitante y del titular.");
-  const normal = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase();
-  if (d.solicitante.rut !== d.transferencia.rutTitular || normal(d.solicitante.nombre) !== normal(d.transferencia.nombreTitular)) throw new Error("La cuenta bancaria debe estar a nombre del solicitante.");
-  const files = [...$("adjuntos").files];
-  if (files.length > 3 || files.some(f => f.size > 600 * 1024 || !["application/pdf", "image/png", "image/jpeg"].includes(f.type))) throw new Error("Adjunta como máximo tres PDF, JPG o PNG de hasta 600 KB cada uno.");
-  return d;
+  limpiarErrores();
+  const errores = erroresDatosFormulario();
+  if (errores.length) {
+    const e = new Error(errores[0].texto); e.errores = errores; throw e;
+  }
+  return datos();
 }
+
 function invalidarRevision() {
   state.revisado = ""; $("revision").classList.add("hidden");
 }
-$("solicitud").addEventListener("input", invalidarRevision);
-$("solicitud").addEventListener("change", invalidarRevision);
+$("solicitud").addEventListener("input", event => { invalidarRevision(); if (event.target.id) limpiarErrorCampo(event.target.id); });
+$("solicitud").addEventListener("change", event => { invalidarRevision(); if (event.target.id) limpiarErrorCampo(event.target.id); });
 $("revisar").addEventListener("click", () => {
   try {
     const d = validar(); state.revisado = JSON.stringify(d);
@@ -161,7 +292,7 @@ $("revisar").addEventListener("click", () => {
       `Motivo: ${$("motivo").selectedOptions[0].textContent}`, d.detalle,
       `Adjuntos: ${[...$("adjuntos").files].map(f => f.name).join(", ") || "Ninguno"}`].join("\n\n");
     $("revision").classList.remove("hidden"); $("revision").scrollIntoView({ behavior: "smooth" });
-  } catch(e) { mensaje(e.message, true); }
+  } catch(e) { presentarError(e); }
 });
 function leerArchivo(f) {
   return new Promise((resolve, reject) => {
@@ -174,10 +305,11 @@ $("solicitud").addEventListener("submit", event => {
   accion(async () => {
     const d = validar();
     if (JSON.stringify(d) !== state.revisado) throw new Error("Revisa nuevamente tus datos antes de enviar.");
-    // Copia completa en memoria para que un fallo de conexión permita reintentar.
-    state.pending = { ...d, adjuntos: await Promise.all([...$("adjuntos").files].map(leerArchivo)) };
-    $("campos").disabled = true; mensaje("Registrando tu solicitud. Espera la confirmación con el folio.");
+    // Congelar los campos mientras se leen adjuntos y se registra la solicitud.
+    $("campos").disabled = true;
     try {
+      state.pending = { ...d, adjuntos: await Promise.all([...$("adjuntos").files].map(leerArchivo)) };
+      mensaje("Registrando tu solicitud. Espera la confirmación con el folio.");
       const result = await api("registrarSolicitud", state.pending);
       $("solicitud").classList.add("hidden"); $("confirmacion").classList.remove("hidden");
       $("recibo").textContent = `${result.yaExistia ? "Ya existía una solicitud recibida para este pasajero.\n" : ""}Folio: ${result.folio}\nRecepción: ${new Date(result.recibidoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} (Chile)`;
@@ -187,3 +319,10 @@ $("solicitud").addEventListener("submit", event => {
     } finally { $("campos").disabled = false; }
   });
 });
+
+const anoMinimo = Number(new Intl.DateTimeFormat("en", { timeZone: "America/Santiago", year: "numeric" }).format(new Date()));
+$("anoBusqueda").min = String(anoMinimo);
+for (const id of ["rutPasajero", "rutSolicitante", "rutTitular"]) $(id).addEventListener("blur", () => {
+  const normal = rut(val(id)); if (normal && rutConGuion(val(id))) $(id).value = normal;
+});
+$("codigo").addEventListener("input", () => limpiarErrorCampo("codigo"));
