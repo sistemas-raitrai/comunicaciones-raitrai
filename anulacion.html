@@ -24,6 +24,9 @@
     .resultado-grupo{display:block;width:100%;text-align:left;white-space:normal;background:#f8faff;color:#202957;border:1px solid #d5dbea;margin-top:10px;line-height:1.5}
     .resultado-grupo:hover,.resultado-grupo:focus-visible{background:#e9eef9;outline:2px solid #566da8}
     #grupoDetalle{border-left:4px solid #23834b}
+    [aria-invalid="true"]{border:2px solid #b42318;background:#fff7f6}
+    .campo-error{color:#b42318;font-weight:700;font-size:.92rem;margin:7px 0 12px;line-height:1.5}
+    #erroresFormulario a{color:#991b1b;text-decoration:underline}
     .hidden{display:none!important}fieldset{border:0;margin:0;padding:0;min-width:0}a{color:var(--azul)}
     #resumen{white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}#estado{position:relative}input[readonly]{background:#f4f6fb}
     @media(max-width:560px){main{margin-top:10px}.card,header{padding:19px}.grid{grid-template-columns:1fr}button{width:100%}h1{font-size:24px}}
@@ -35,35 +38,37 @@
     <img src="./Logo Raitrai.png" alt="Turismo Rai Trai">
     <h1>Solicitud de anulación del viaje</h1>
     <p>Completa este formulario para solicitar formalmente la anulación de la participación de una persona en el viaje.</p>
-    <p class="muted">La solicitud inicia una revisión administrativa y se te informará por escrito el resultado y si corresponde una devolución o no.</p>
+    <p class="muted">La solicitud inicia una revisión administrativa. Administración te informará por escrito el resultado y si corresponde una devolución.</p>
   </header>
   <section id="identificacion" class="card">
     <h2>1. Identifica el grupo y verifica tu correo</h2>
-    <p>Escribe el nombre del colegio o el ID del grupo. Luego selecciona el curso y año de viaje que corresponden. Puedes buscar en cualquier año.</p>
+    <p>Escribe el nombre del colegio o el ID del grupo. Luego selecciona el curso y año de viaje que corresponden. Se muestran grupos confirmados con viaje desde el año actual.</p>
     <div class="grid">
       <div><label for="idGrupo">Busca tu colegio o grupo *</label>
         <input id="idGrupo" type="search" maxlength="120" autocomplete="off" placeholder="Ej.: San Ignacio o 10655" aria-describedby="ayudaBusqueda" aria-controls="grupoResultados">
       </div>
       <div><label for="anoBusqueda">Año del viaje (opcional)</label>
-        <input id="anoBusqueda" type="number" inputmode="numeric" min="1900" max="2200" placeholder="Todos los años">
+        <input id="anoBusqueda" type="number" inputmode="numeric" min="1900" max="2200" placeholder="Actual y futuros">
       </div>
     </div>
-    <p id="ayudaBusqueda" class="muted">También puedes escribir colegio, curso y año juntos: Colegio 3A 2027. Presiona Buscar grupos o la tecla Enter.</p>
+    <p id="ayudaBusqueda" class="muted">También puedes escribir colegio, curso y año juntos: San Ignacio 3A 2027. Presiona Buscar grupos o la tecla Enter.</p>
     <button id="buscar" type="button">Buscar grupos</button>
     <div id="grupoResultados" role="region" aria-label="Resultados de grupos" aria-live="polite"></div>
     <p id="grupoDetalle" class="notice hidden"></p>
-    <div class="grid">
-      <div><label for="rutPasajero">RUT de la persona que viaja *</label><input id="rutPasajero" maxlength="14" placeholder="12345678-5" autocomplete="off"></div>
-      <div><label for="correoVerificacion">Correo registrado en la inscripción *</label><input id="correoVerificacion" type="email" maxlength="254" autocomplete="email"></div>
-    </div>
-    <p class="muted">Para estudiantes, utiliza uno de los correos de apoderados registrados. Para profesores o adultos acompañantes, también puedes usar el correo personal registrado. Si ya no tienes acceso, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a>.</p>
-    <button id="pedirCodigo" type="button" disabled>Solicitar código por correo</button>
+    <label for="rutPasajero">RUT de la persona que viaja, con guion y dígito verificador *</label>
+    <input id="rutPasajero" maxlength="14" placeholder="12345678-5" autocomplete="off" aria-describedby="rutPasajeroAyuda">
+    <p id="rutPasajeroAyuda" class="muted">Usa el RUT del pasajero, no el de su apoderado. Buscaremos el correo que ya está registrado en su inscripción.</p>
+    <button id="pedirCodigo" type="button" disabled>Continuar con el RUT</button>
+    <div id="destinosCorreo" class="hidden" aria-live="polite"></div>
+    <p id="avisoCorreo" class="notice hidden" aria-live="polite"></p>
+    <p class="muted">Si el correo mostrado no corresponde o ya no tienes acceso, contacta a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a>.</p>
     <div id="codigoBloque" class="hidden">
       <label for="codigo">Código de seis dígitos *</label><input id="codigo" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6">
       <button id="verificar" type="button">Verificar y continuar</button>
     </div>
   </section>
-  <form id="solicitud" class="hidden">
+  <form id="solicitud" class="hidden" novalidate>
+    <div id="erroresFormulario" class="notice error hidden" role="alert" tabindex="-1"></div>
     <fieldset id="campos">
       <section class="card">
         <h2>2. Pasajero y condiciones</h2><p id="viaje" class="notice"></p>
@@ -77,7 +82,7 @@
           <div><label for="rutSolicitante">RUT del solicitante *</label><input id="rutSolicitante" maxlength="14" required></div>
           <div><label for="relacion">Relación con el pasajero *</label><select id="relacion" required><option value="">Selecciona</option><option value="madre">Madre</option><option value="padre">Padre</option><option value="apoderado">Apoderado(a)</option><option value="representante">Representante autorizado</option><option value="pasajero">Soy la persona que viaja</option></select></div>
           <div><label for="telefono">Celular *</label><input id="telefono" type="tel" autocomplete="tel" value="+569" pattern="\+569[0-9]{8}" maxlength="12" required></div>
-          <div><label for="correo">Correo verificado *</label><input id="correo" type="email" readonly required></div>
+          <div><label for="correo">Correo verificado *</label><input id="correo" type="email" readonly required><small>Correo verificado mediante el código.</small></div>
         </div>
       </section>
       <section class="card">
@@ -95,7 +100,8 @@
       <section class="card">
         <h2>5. Motivo y antecedentes</h2>
         <label for="motivo">Motivo principal *</label><select id="motivo" required><option value="">Selecciona</option><option value="personales">Motivos personales</option><option value="medicos">Motivos médicos</option><option value="economicos">Motivos económicos</option><option value="cambio_establecimiento">Cambio de establecimiento</option><option value="desistimiento">Desistimiento voluntario</option><option value="otro">Otro</option></select>
-        <label for="detalle">Explica el motivo de tu solicitud *</label><textarea id="detalle" minlength="10" maxlength="5000" required></textarea>
+        <label for="detalle">Explica el motivo de tu solicitud *</label><textarea id="detalle" minlength="10" maxlength="5000" required aria-describedby="detalleAyuda"></textarea>
+        <p id="detalleAyuda" class="muted">Escribe al menos 10 caracteres explicando el motivo de la solicitud.</p>
         <label for="adjuntos">Antecedentes adjuntos (opcional)</label><input id="adjuntos" type="file" multiple accept="application/pdf,image/jpeg,image/png">
         <p class="muted">Hasta tres archivos PDF, JPG o PNG, de un máximo de 600 KB cada uno. Adjunta solo antecedentes necesarios para gestionar esta solicitud.</p>
       </section>
@@ -113,6 +119,6 @@
   <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Solicitud recibida</h2><p id="recibo" class="notice success"></p><p>Se programó un respaldo a tu correo. Revisa también spam. Conserva el folio: tu solicitud permanece recibida aunque el correo se retrase.</p><p>Administración informará por escrito el resultado de la evaluación. Para aportar antecedentes o corregir datos, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
   <div id="estado" class="notice hidden" role="status" aria-live="polite" tabindex="-1"></div>
 </main>
-<script type="module" src="./anulacion.js?v=20261015-buscador2"></script>
+<script type="module" src="./anulacion.js?v=20261019-correo3"></script>
 </body>
 </html>
