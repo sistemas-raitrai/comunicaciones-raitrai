@@ -108,11 +108,12 @@ function reiniciarVerificacion() {
 function mostrarRetoCorreo(d) {
   state.reto = d.verificacionId;
   $("destinosCorreo").classList.add("hidden");
-  $("avisoCorreo").textContent = d.mensaje;
+  $("avisoCorreo").textContent = `Solicitamos el envío de un código a ${d.correoOculto}. Puede tardar unos minutos. Revisa también spam.`;
   $("avisoCorreo").classList.remove("hidden");
   $("codigo").value = "";
   $("codigoBloque").classList.remove("hidden");
-  mensaje(d.mensaje, false, false);
+  $("estado").textContent = "";
+  $("estado").classList.add("hidden");
 }
 $("rutPasajero").addEventListener("input", () => { reiniciarVerificacion(); limpiarErrorCampo("rutPasajero"); });
 $("pedirCodigo").addEventListener("click", () => accion(async () => {
@@ -126,7 +127,7 @@ $("pedirCodigo").addEventListener("click", () => accion(async () => {
   if (!d.seleccionId || !Array.isArray(d.destinos) || !d.destinos.length) throw new Error("No encontramos un correo disponible. Contacta a anulaciones@raitrai.cl.");
   state.seleccionCorreo = d.seleccionId;
   const box = $("destinosCorreo"); box.replaceChildren(); box.classList.remove("hidden");
-  const p = document.createElement("p"); p.textContent = d.mensaje; box.append(p);
+  const p = document.createElement("p"); p.textContent = "Hay más de un correo registrado. Selecciona a cuál enviar el código:"; box.append(p);
   for (const destino of d.destinos) {
     const boton = document.createElement("button"); boton.type = "button"; boton.className = "resultado-grupo";
     boton.textContent = `Enviar código a ${destino.correoOculto}`;
@@ -136,7 +137,8 @@ $("pedirCodigo").addEventListener("click", () => accion(async () => {
     }));
     box.append(boton);
   }
-  mensaje(d.mensaje, false, false);
+  $("estado").textContent = "";
+  $("estado").classList.add("hidden");
 }));
 $("rutPasajero").addEventListener("keydown", event => {
   if (event.key === "Enter") { event.preventDefault(); if (!state.busy) $("pedirCodigo").click(); }
