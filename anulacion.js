@@ -43,8 +43,8 @@ function limpiarGrupoSeleccionado() {
   $("codigo").value = "";
   $("pedirCodigo").disabled = true;
 }
-function seleccionarGrupo(grupo) {
-  if (state.busy) return;
+function seleccionarGrupo(grupo, desdeEnlace = false) {
+  if (state.busy && !desdeEnlace) return;
   limpiarGrupoSeleccionado();
   state.grupo = grupo;
   $("grupoDetalle").textContent = `Grupo seleccionado: ${etiqueta(grupo)}`;
@@ -314,7 +314,7 @@ $("solicitud").addEventListener("submit", event => {
       mensaje("Registrando tu solicitud. Espera la confirmación con el folio.");
       const result = await api("registrarSolicitud", state.pending);
       $("solicitud").classList.add("hidden"); $("confirmacion").classList.remove("hidden");
-      $("recibo").textContent = `${result.yaExistia ? "Ya existía una solicitud recibida para este pasajero.\n" : ""}Folio: ${result.folio}\nRecepción: ${new Date(result.recibidoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} (Chile)`;
+      $("recibo").textContent = `${result.yaExistia ? "Ya existía una solicitud formalmente presentada para este pasajero.\n" : ""}Folio: ${result.folio}\nRecepción: ${new Date(result.recibidoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} (Chile)`;
       state.pending = null; state.session = null;
       $("solicitud").reset(); $("adjuntos").value = "";
       $("estado").classList.add("hidden"); $("confirmacion").focus();
@@ -328,3 +328,33 @@ for (const id of ["rutPasajero", "rutSolicitante", "rutTitular"]) $(id).addEvent
   const normal = rut(val(id)); if (normal && rutConGuion(val(id))) $(id).value = normal;
 });
 $("codigo").addEventListener("input", () => limpiarErrorCampo("codigo"));
+
+
+async function cargarGrupoDesdeEnlace() {
+  const parametros = new URLSearchParams(window.location.search);
+  if (!parametros.has("grupo")) return;
+  const id = String(parametros.get("grupo") || "").trim();
+  // Un enlace específico nunca deriva silenciosamente a otro grupo.
+  $("buscadorGrupo").classList.add("hidden");
+  $("grupoEnlaceEstado").classList.remove("hidden");
+  $("grupoEnlaceEstado").classList.remove("error");
+  $("grupoEnlaceEstado").textContent = "Cargando el grupo de tu enlace…";
+  $("reintentarGrupoEnlace").classList.add("hidden");
+  limpiarGrupoSeleccionado();
+  await accion(async () => {
+    if (!id || id.length > 80) throw new Error("El enlace no contiene un grupo válido. Solicita un nuevo enlace a Rai Trai.");
+    const respuesta = await api("consultarGrupo", { idGrupo: id });
+    if (!respuesta.grupo?.groupDocId) throw new Error("No pudimos identificar el grupo de este enlace. Solicita un nuevo enlace a Rai Trai.");
+    seleccionarGrupo(respuesta.grupo, true);
+    $("grupoEnlaceEstado").classList.add("hidden");
+  });
+  if (state.grupo) {
+    $("rutPasajero").focus({ preventScroll: true });
+  } else {
+    $("grupoEnlaceEstado").textContent = "No pudimos cargar el grupo de este enlace. Reintenta o contacta a anulaciones@raitrai.cl indicando el enlace recibido.";
+    $("grupoEnlaceEstado").classList.add("error");
+    $("reintentarGrupoEnlace").classList.remove("hidden");
+  }
+}
+$("reintentarGrupoEnlace").addEventListener("click", cargarGrupoDesdeEnlace);
+cargarGrupoDesdeEnlace();
