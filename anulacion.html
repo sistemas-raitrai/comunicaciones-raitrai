@@ -38,10 +38,10 @@
     <img src="./Logo Raitrai.png" alt="Turismo Rai Trai">
     <h1>Solicitud de anulación del viaje</h1>
     <p>Completa este formulario para solicitar formalmente la anulación de la participación de una persona en el viaje.</p>
-    <p class="muted">La solicitud inicia una revisión administrativa. Administración te informará por escrito el resultado y si corresponde una devolución.</p>
   </header>
   <section id="identificacion" class="card">
-    <h2>1. Identifica el grupo y verifica tu correo</h2>
+    <h2>1. Verifica la persona que viaja</h2>
+    <div id="buscadorGrupo">
     <p>Escribe el nombre del colegio o el ID del grupo. Luego selecciona el curso y año de viaje que corresponden. Se muestran grupos confirmados con viaje desde el año actual.</p>
     <div class="grid">
       <div><label for="idGrupo">Busca tu colegio o grupo *</label>
@@ -54,6 +54,9 @@
     <p id="ayudaBusqueda" class="muted">También puedes escribir colegio, curso y año juntos: San Ignacio 3A 2027. Presiona Buscar grupos o la tecla Enter.</p>
     <button id="buscar" type="button">Buscar grupos</button>
     <div id="grupoResultados" role="region" aria-label="Resultados de grupos" aria-live="polite"></div>
+    </div>
+    <p id="grupoEnlaceEstado" class="notice hidden" role="status"></p>
+    <button id="reintentarGrupoEnlace" type="button" class="hidden">Reintentar carga del grupo</button>
     <p id="grupoDetalle" class="notice hidden"></p>
     <label for="rutPasajero">RUT de la persona que viaja, con guion y dígito verificador *</label>
     <input id="rutPasajero" maxlength="14" placeholder="12345678-5" autocomplete="off" aria-describedby="rutPasajeroAyuda">
@@ -73,7 +76,6 @@
       <section class="card">
         <h2>2. Pasajero y condiciones</h2><p id="viaje" class="notice"></p>
         <div id="condiciones"></div>
-        <p class="muted">Los porcentajes y plazos aplicables son los de tu contrato. Si necesitas una copia o aclaración, solicítala a Rai Trai antes de enviar.</p>
       </section>
       <section class="card">
         <h2>3. Datos del solicitante</h2>
@@ -116,9 +118,9 @@
       </section>
     </fieldset>
   </form>
-  <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Solicitud recibida</h2><p id="recibo" class="notice success"></p><p>Se programó un respaldo a tu correo. Revisa también spam. Conserva el folio: tu solicitud permanece recibida aunque el correo se retrase.</p><p>Administración informará por escrito el resultado de la evaluación. Para aportar antecedentes o corregir datos, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
+  <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Solicitud de anulación formalmente presentada</h2><p id="recibo" class="notice success"></p><p>Se enviará automáticamente un respaldo a tu correo electrónico. Revisa también spam. Conserva el folio: tu solicitud queda formalmente presentada aunque el correo se retrase.</p><p>Administración te informará posteriormente si corresponde una devolución y, cuando corresponda, su monto. Para aportar antecedentes o corregir datos, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
   <div id="estado" class="notice hidden" role="status" aria-live="polite" tabindex="-1"></div>
 </main>
-<script type="module" src="./anulacion.js?v=20261019-correo3"></script>
+<script type="module" src="./anulacion.js?v=20261020-formal5"></script>
 </body>
 </html>
