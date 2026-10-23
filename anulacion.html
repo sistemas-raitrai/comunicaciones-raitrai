@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#202957">
   <meta name="referrer" content="no-referrer">
-  <title>Solicitud de anulación · Turismo Rai Trai</title>
+  <title>Anulación de participación · Turismo Rai Trai</title>
   <link rel="icon" href="./Logo Raitrai.png" type="image/png">
   <style>
     :root{font-family:Arial,Helvetica,sans-serif;color:#151c40;background:#f4f6fb;--azul:#202957;--borde:#d5dbea}
@@ -27,6 +27,12 @@
     [aria-invalid="true"]{border:2px solid #b42318;background:#fff7f6}
     .campo-error{color:#b42318;font-weight:700;font-size:.92rem;margin:7px 0 12px;line-height:1.5}
     #erroresFormulario a{color:#991b1b;text-decoration:underline}
+    .lista-politicas{padding-left:22px}.lista-politicas li{margin:12px 0;line-height:1.65}
+    details{border:1px solid var(--borde);border-radius:10px;padding:14px;margin:18px 0}
+    summary{cursor:pointer;font-weight:700;color:var(--azul)}#politicasDetalle h3{font-size:17px;margin:22px 0 8px}
+    .tabla-politicas{overflow:auto}.tabla-politicas table{border-collapse:collapse;width:100%}
+    .tabla-politicas th,.tabla-politicas td{border:1px solid var(--borde);padding:10px;text-align:left;line-height:1.5}
+    .tabla-politicas th{background:#e9eef9}
     .hidden{display:none!important}fieldset{border:0;margin:0;padding:0;min-width:0}a{color:var(--azul)}
     #resumen{white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}#estado{position:relative}input[readonly]{background:#f4f6fb}
     @media(max-width:560px){main{margin-top:10px}.card,header{padding:19px}.grid{grid-template-columns:1fr}button{width:100%}h1{font-size:24px}}
@@ -36,11 +42,26 @@
 <main>
   <header>
     <img src="./Logo Raitrai.png" alt="Turismo Rai Trai">
-    <h1>Solicitud de anulación del viaje</h1>
-    <p>Completa este formulario para solicitar formalmente la anulación de la participación de una persona en el viaje.</p>
+    <h1>Anulación de participación en el viaje</h1>
+    <p>Lee las políticas y completa los datos para confirmar tu decisión definitiva de anular la participación de una persona en el viaje.</p>
   </header>
-  <section id="identificacion" class="card">
-    <h2>1. Verifica la persona que viaja</h2>
+  <section id="politicasPrevias" class="card">
+    <h2>1. Antes de continuar: políticas de anulación</h2>
+    <p>Conoce las consecuencias de la anulación antes de identificar al pasajero. Leer esta información y continuar no registra una anulación: la decisión se confirma al finalizar el formulario.</p>
+    <div id="politicasEstado" class="notice" role="status">Cargando políticas…</div>
+    <ul id="politicasResumen" class="lista-politicas"></ul>
+    <details>
+      <summary>Ver políticas de anulación</summary>
+      <div id="politicasDetalle"></div>
+    </details>
+    <label class="check">
+      <input id="aceptaPoliticas" type="checkbox" disabled>
+      <span id="textoAceptacionPoliticas">Declaro haber leído las políticas de anulación y comprender sus consecuencias.</span>
+    </label>
+    <button id="continuarPoliticas" type="button" disabled>Continuar</button>
+  </section>
+  <section id="identificacion" class="card hidden">
+    <h2>2. Identifica a la persona que viaja</h2>
     <div id="buscadorGrupo">
     <p>Escribe el nombre del colegio o el ID del grupo. Luego selecciona el curso y año de viaje que corresponden. Se muestran grupos confirmados con viaje desde el año actual.</p>
     <div class="grid">
@@ -73,15 +94,12 @@
   <form id="solicitud" class="hidden" novalidate>
     <div id="erroresFormulario" class="notice error hidden" role="alert" tabindex="-1"></div>
     <fieldset id="campos">
+      <p id="viaje" class="notice"></p>
       <section class="card">
-        <h2>2. Pasajero y condiciones</h2><p id="viaje" class="notice"></p>
-        <div id="condiciones"></div>
-      </section>
-      <section class="card">
-        <h2>3. Datos del solicitante</h2>
+        <h2>3. Datos de quien realiza la anulación</h2>
         <label for="nombre">Nombre completo *</label><input id="nombre" autocomplete="name" minlength="3" maxlength="160" required>
         <div class="grid">
-          <div><label for="rutSolicitante">RUT del solicitante *</label><input id="rutSolicitante" maxlength="14" required></div>
+          <div><label for="rutSolicitante">RUT de quien realiza la anulación *</label><input id="rutSolicitante" maxlength="14" required></div>
           <div><label for="relacion">Relación con el pasajero *</label><select id="relacion" required><option value="">Selecciona</option><option value="madre">Madre</option><option value="padre">Padre</option><option value="apoderado">Apoderado(a)</option><option value="representante">Representante autorizado</option><option value="pasajero">Soy la persona que viaja</option></select></div>
           <div><label for="telefono">Celular *</label><input id="telefono" type="tel" autocomplete="tel" value="+569" pattern="\+569[0-9]{8}" maxlength="12" required></div>
           <div><label for="correo">Correo verificado *</label><input id="correo" type="email" readonly required><small>Correo verificado mediante el código.</small></div>
@@ -89,7 +107,7 @@
       </section>
       <section class="card">
         <h2>4. Datos para una eventual transferencia</h2>
-        <p>Todos estos datos son obligatorios. La cuenta debe pertenecer al solicitante. Informarla no garantiza que exista una devolución.</p>
+        <p>Todos estos datos son obligatorios. La cuenta debe pertenecer a quien realiza la anulación. Informarla no garantiza que exista una devolución.</p>
         <button id="usarDatos" class="secondary" type="button">Usar mis datos como titular</button>
         <label for="nombreTitular">Nombre completo del titular *</label><input id="nombreTitular" minlength="3" maxlength="160" required>
         <div class="grid">
@@ -100,27 +118,25 @@
         </div>
       </section>
       <section class="card">
-        <h2>5. Motivo y antecedentes</h2>
-        <label for="motivo">Motivo principal *</label><select id="motivo" required><option value="">Selecciona</option><option value="personales">Motivos personales</option><option value="medicos">Motivos médicos</option><option value="economicos">Motivos económicos</option><option value="cambio_establecimiento">Cambio de establecimiento</option><option value="desistimiento">Desistimiento voluntario</option><option value="otro">Otro</option></select>
-        <label for="detalle">Explica el motivo de tu solicitud *</label><textarea id="detalle" minlength="10" maxlength="5000" required aria-describedby="detalleAyuda"></textarea>
-        <p id="detalleAyuda" class="muted">Escribe al menos 10 caracteres explicando el motivo de la solicitud.</p>
-        <label for="adjuntos">Antecedentes adjuntos (opcional)</label><input id="adjuntos" type="file" multiple accept="application/pdf,image/jpeg,image/png">
-        <p class="muted">Hasta tres archivos PDF, JPG o PNG, de un máximo de 600 KB cada uno. Adjunta solo antecedentes necesarios para gestionar esta solicitud.</p>
+        <h2>5. Comentarios adicionales (opcional)</h2>
+        <label for="comentarios">Comentarios sobre la anulación</label>
+        <textarea id="comentarios" maxlength="5000" aria-describedby="comentariosAyuda"></textarea>
+        <p id="comentariosAyuda" class="muted">Puedes dejar un comentario si lo deseas. Este campo es opcional y no requiere justificar tu decisión.</p>
       </section>
       <section class="card">
-        <h2>6. Revisa y envía tu solicitud</h2>
+        <h2>6. Revisa y confirma la anulación</h2>
         <div id="declaraciones"></div>
         <button id="revisar" class="secondary" type="button">Revisar mis datos</button>
         <div id="revision" class="hidden"><div id="resumen" class="notice"></div>
-          <p>Al presionar el siguiente botón enviarás formalmente la solicitud. Se conservarán la fecha y hora de recepción y las declaraciones aceptadas.</p>
-          <button id="enviar" type="submit">Enviar solicitud de anulación</button>
+          <p>Al presionar Confirmar anulación, quedará registrada tu decisión definitiva de anular la participación del pasajero. Comprueba sus datos antes de continuar.</p>
+          <button id="enviar" type="submit">Confirmar anulación</button>
         </div>
       </section>
     </fieldset>
   </form>
-  <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Solicitud de anulación formalmente presentada</h2><p id="recibo" class="notice success"></p><p>Se enviará automáticamente un respaldo a tu correo electrónico. Revisa también spam. Conserva el folio: tu solicitud queda formalmente presentada aunque el correo se retrase.</p><p>Administración te informará posteriormente si corresponde una devolución y, cuando corresponda, su monto. Para aportar antecedentes o corregir datos, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
+  <section id="confirmacion" class="card hidden" tabindex="-1"><h2>Tu anulación quedó registrada</h2><p id="recibo" class="notice success"></p><p>Se enviará automáticamente un respaldo a tu correo electrónico. Revisa también spam. Conserva el folio: tu decisión definitiva de anulación queda registrada aunque el correo se retrase.</p><p>Administración te informará posteriormente si corresponde una devolución y, cuando corresponda, su monto. Para consultas sobre tu anulación, escribe a <a href="mailto:anulaciones@raitrai.cl">anulaciones@raitrai.cl</a> indicando el folio.</p></section>
   <div id="estado" class="notice hidden" role="status" aria-live="polite" tabindex="-1"></div>
 </main>
-<script type="module" src="./anulacion.js?v=20261020-formal5"></script>
+<script type="module" src="./anulacion.js?v=20261023-politicas7"></script>
 </body>
 </html>
