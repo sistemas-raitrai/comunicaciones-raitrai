@@ -1,7 +1,7 @@
 const API_URL = "https://southamerica-west1-sist-op-rt.cloudfunctions.net/solicitudesAnulacionPublica";
 const $ = id => document.getElementById(id);
 const val = id => $(id).value.trim();
-const state = { grupo: null, reto: "", session: null, busy: false, revisado: "", pending: null, seleccionCorreo: "" };
+const state = { grupo: null, reto: "", session: null, busy: false, revisado: "", pending: null, seleccionCorreo: "", politicasData: null, politicasToken: "" };
 function mensaje(text, error = false, enfocar = true) {
   $("estado").textContent = text;
   $("estado").className = `notice ${error ? "error" : ""}`;
@@ -10,7 +10,7 @@ function mensaje(text, error = false, enfocar = true) {
 async function api(accion, payload = {}) {
   let r;
   try { r = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion, ...payload }) }); }
-  catch { throw new Error("No pudimos conectar. Si estabas enviando, reintenta con los mismos datos para recuperar el folio sin duplicar la solicitud."); }
+  catch { throw new Error("No pudimos conectar. Si estabas enviando, reintenta con los mismos datos para recuperar el folio sin duplicar la anulación."); }
   let d; try { d = await r.json(); } catch { throw new Error("El servidor devolvió una respuesta inesperada. Reintenta."); }
   if (!r.ok || !d.ok) { const e = new Error(d.error || "No pudimos completar la operación."); e.campo = d.campo || ""; throw e; }
   return d;
@@ -18,11 +18,11 @@ async function api(accion, payload = {}) {
 async function accion(fn) {
   if (state.busy) return;
   state.busy = true;
-  const buttons = [...document.querySelectorAll("button, #identificacion input, #identificacion select")].map(b => [b, b.disabled]);
+  const buttons = [...document.querySelectorAll("button, #identificacion input, #identificacion select, #politicasPrevias input")].map(b => [b, b.disabled]);
   buttons.forEach(([b]) => b.disabled = true);
   let error;
   try { await fn(); } catch(e) { error = e; }
-  finally { state.busy = false; buttons.forEach(([b, disabled]) => b.disabled = disabled); $("pedirCodigo").disabled = !state.grupo; }
+  finally { state.busy = false; buttons.forEach(([b, disabled]) => b.disabled = disabled); $("pedirCodigo").disabled = !state.grupo || !state.politicasToken; actualizarBotonPoliticas(); }
   if (error) presentarError(error);
 }
 function rut(v) {
@@ -50,7 +50,7 @@ function seleccionarGrupo(grupo, desdeEnlace = false) {
   $("grupoDetalle").textContent = `Grupo seleccionado: ${etiqueta(grupo)}`;
   $("grupoDetalle").classList.remove("hidden");
   $("grupoResultados").replaceChildren();
-  $("pedirCodigo").disabled = false;
+  $("pedirCodigo").disabled = !state.politicasToken;
   mensaje("Grupo seleccionado. Ingresa el RUT de la persona que viaja, con guion y dígito verificador.");
   $("rutPasajero").focus();
 }
@@ -117,12 +117,13 @@ function mostrarRetoCorreo(d) {
 }
 $("rutPasajero").addEventListener("input", () => { reiniciarVerificacion(); limpiarErrorCampo("rutPasajero"); });
 $("pedirCodigo").addEventListener("click", () => accion(async () => {
+  if (!state.politicasToken) throw new Error("Primero lee y acepta las políticas de anulación.");
   if (!state.grupo) errorCampo("idGrupo", "Busca y selecciona tu grupo antes de continuar.");
   if (!rutConGuion(val("rutPasajero"))) errorCampo("rutPasajero", "Ingresa el RUT de la persona que viaja con guion y dígito verificador, por ejemplo 12345678-5.");
   if (!rut(val("rutPasajero"))) errorCampo("rutPasajero", "El dígito verificador del RUT no es correcto. Compruébalo antes de continuar.");
   limpiarErrorCampo("rutPasajero");
   reiniciarVerificacion();
-  const d = await api("prepararVerificacion", { idGrupo: state.grupo.groupDocId, rutPasajero: rut(val("rutPasajero")) });
+  const d = await api("prepararVerificacion", { idGrupo: state.grupo.groupDocId, rutPasajero: rut(val("rutPasajero")), politicasToken: state.politicasToken });
   if (d.verificacionId) { mostrarRetoCorreo(d); return; }
   if (!d.seleccionId || !Array.isArray(d.destinos) || !d.destinos.length) throw new Error("No encontramos un correo disponible. Contacta a anulaciones@raitrai.cl.");
   state.seleccionCorreo = d.seleccionId;
@@ -150,8 +151,6 @@ $("verificar").addEventListener("click", () => accion(async () => {
   state.session = d;
   $("viaje").textContent = `${etiqueta(d.grupo)}\nPasajero: ${d.pasajero.nombre} · RUT ${d.pasajero.rut}`;
   $("correo").value = d.correo;
-  $("condiciones").replaceChildren();
-  for (const text of d.condiciones) { const p = document.createElement("p"); p.textContent = text; $("condiciones").append(p); }
   $("declaraciones").replaceChildren();
   for (const [key, text] of Object.entries(d.declaraciones)) {
     const label = document.createElement("label"); label.className = "check";
@@ -160,7 +159,7 @@ $("verificar").addEventListener("click", () => accion(async () => {
     label.append(check, span); $("declaraciones").append(label);
   }
   $("identificacion").classList.add("hidden"); $("solicitud").classList.remove("hidden");
-  mensaje("Correo verificado. Completa los datos y revisa la solicitud antes de enviarla.");
+  mensaje("Correo verificado. Completa los datos y revísalos antes de confirmar la anulación.");
   $("solicitud").scrollIntoView({ behavior: "smooth" });
 }));
 $("usarDatos").addEventListener("click", () => { $("nombreTitular").value = val("nombre"); $("rutTitular").value = val("rutSolicitante"); invalidarRevision(); });
@@ -169,7 +168,7 @@ function datos() {
   return { sessionToken: state.session.sessionToken, version: state.session.version,
     solicitante: { nombre: val("nombre"), rut: rut(val("rutSolicitante")), relacion: val("relacion"), telefono: val("telefono"), correo: val("correo") },
     transferencia: { nombreTitular: val("nombreTitular"), rutTitular: rut(val("rutTitular")), banco: val("banco"), tipoCuenta: val("tipoCuenta"), numeroCuenta: val("numeroCuenta") },
-    motivo: val("motivo"), detalle: val("detalle"), declaraciones: declarations };
+    comentarios: val("comentarios"), declaraciones: declarations };
 }
 function rutConGuion(value) {
   return /^\d{7,8}-[0-9kK]$/.test(String(value || "").trim().replace(/\./g, ""));
@@ -236,7 +235,7 @@ function erroresDatosFormulario() {
     const value = String(el.value || "").trim();
     if (el.type === "checkbox") {
       if (el.required && !el.checked) {
-        const textos = { solicita: "Debes confirmar que solicitas formalmente la anulación.", representa: "Debes aceptar la declaración de representación y veracidad de los datos.", transferencia: "Debes aceptar la declaración de titularidad y uso de la cuenta bancaria.", tratamiento: "Debes autorizar el uso de los datos para tramitar la solicitud." };
+        const textos = { solicita: "Debes confirmar tu decisión definitiva de anular la participación del pasajero.", representa: "Debes aceptar la declaración de representación y veracidad de los datos.", transferencia: "Debes aceptar la declaración de titularidad y uso de la cuenta bancaria.", tratamiento: "Debes autorizar el uso de los datos para gestionar la anulación." };
         add(el.id, textos[el.id.replace("decl_", "")] || "Debes aceptar esta declaración para continuar.");
       }
       continue;
@@ -252,19 +251,13 @@ function erroresDatosFormulario() {
       : el.id === "numeroCuenta" ? "Número de cuenta: ingresa entre 3 y 30 dígitos, sin puntos, espacios ni guiones."
       : `Revisa el formato de ${nombre.toLowerCase()}.`);
   }
-  for (const [id, nombre] of [["rutSolicitante", "RUT del solicitante"], ["rutTitular", "RUT del titular"]]) {
+  for (const [id, nombre] of [["rutSolicitante", "RUT de quien realiza la anulación"], ["rutTitular", "RUT del titular"]]) {
     if (val(id) && !rutConGuion(val(id))) add(id, `${nombre}: usa guion y dígito verificador, por ejemplo 12345678-5.`);
     else if (val(id) && !rut(val(id))) add(id, `${nombre}: el dígito verificador no es correcto.`);
   }
   const normal = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase();
-  if (rut(val("rutSolicitante")) && rut(val("rutTitular")) && rut(val("rutSolicitante")) !== rut(val("rutTitular"))) add("rutTitular", "La cuenta debe pertenecer al solicitante: el RUT del titular debe ser igual al del solicitante.");
-  if (val("nombre") && val("nombreTitular") && normal(val("nombre")) !== normal(val("nombreTitular"))) add("nombreTitular", "El nombre del titular debe coincidir con el del solicitante. Puedes usar el botón Usar mis datos como titular.");
-  const files = [...$("adjuntos").files];
-  if (files.length > 3) add("adjuntos", "Puedes adjuntar como máximo tres archivos. Retira los adicionales.");
-  for (const f of files) {
-    if (f.size > 600 * 1024) add("adjuntos", `El archivo ${f.name} pesa más de 600 KB. Reduce su tamaño antes de adjuntarlo.`);
-    if (!["application/pdf", "image/png", "image/jpeg"].includes(f.type)) add("adjuntos", `El archivo ${f.name} no es PDF, JPG ni PNG. Usa uno de esos formatos.`);
-  }
+  if (rut(val("rutSolicitante")) && rut(val("rutTitular")) && rut(val("rutSolicitante")) !== rut(val("rutTitular"))) add("rutTitular", "La cuenta debe pertenecer a quien realiza la anulación: ambos RUT deben ser iguales.");
+  if (val("nombre") && val("nombreTitular") && normal(val("nombre")) !== normal(val("nombreTitular"))) add("nombreTitular", "El nombre del titular debe coincidir con el de quien realiza la anulación. Puedes usar el botón Usar mis datos como titular.");
   return [...errores.values()];
 }
 function validar() {
@@ -287,36 +280,29 @@ $("revisar").addEventListener("click", () => {
     const d = validar(); state.revisado = JSON.stringify(d);
     $("resumen").textContent = [etiqueta(state.session.grupo),
       `Pasajero: ${state.session.pasajero.nombre} · ${state.session.pasajero.rut}`,
-      `Solicitante: ${d.solicitante.nombre} · ${d.solicitante.rut} · ${$("relacion").selectedOptions[0].textContent}`,
+      `Persona que realiza la anulación: ${d.solicitante.nombre} · ${d.solicitante.rut} · ${$("relacion").selectedOptions[0].textContent}`,
       `Contacto: ${d.solicitante.telefono} · ${d.solicitante.correo}`,
       `Titular: ${d.transferencia.nombreTitular} · ${d.transferencia.rutTitular}`,
       `Banco: ${d.transferencia.banco} · ${$("tipoCuenta").selectedOptions[0].textContent} · Cuenta ${d.transferencia.numeroCuenta}`,
-      `Motivo: ${$("motivo").selectedOptions[0].textContent}`, d.detalle,
-      `Adjuntos: ${[...$("adjuntos").files].map(f => f.name).join(", ") || "Ninguno"}`].join("\n\n");
+      `Comentarios adicionales: ${d.comentarios || "Sin comentarios"}`].join("\n\n");
     $("revision").classList.remove("hidden"); $("revision").scrollIntoView({ behavior: "smooth" });
   } catch(e) { presentarError(e); }
 });
-function leerArchivo(f) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader(); r.onerror = () => reject(new Error("No pudimos leer el archivo."));
-    r.onload = () => resolve({ nombre: f.name, tipo: f.type, base64: String(r.result).split(",")[1] }); r.readAsDataURL(f);
-  });
-}
 $("solicitud").addEventListener("submit", event => {
   event.preventDefault();
   accion(async () => {
     const d = validar();
     if (JSON.stringify(d) !== state.revisado) throw new Error("Revisa nuevamente tus datos antes de enviar.");
-    // Congelar los campos mientras se leen adjuntos y se registra la solicitud.
+    // Congelar los campos mientras se registra la confirmación definitiva de anulación.
     $("campos").disabled = true;
     try {
-      state.pending = { ...d, adjuntos: await Promise.all([...$("adjuntos").files].map(leerArchivo)) };
-      mensaje("Registrando tu solicitud. Espera la confirmación con el folio.");
+      state.pending = { ...d };
+      mensaje("Registrando tu anulación. Espera la confirmación con el folio.");
       const result = await api("registrarSolicitud", state.pending);
       $("solicitud").classList.add("hidden"); $("confirmacion").classList.remove("hidden");
-      $("recibo").textContent = `${result.yaExistia ? "Ya existía una solicitud formalmente presentada para este pasajero.\n" : ""}Folio: ${result.folio}\nRecepción: ${new Date(result.recibidoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} (Chile)`;
-      state.pending = null; state.session = null;
-      $("solicitud").reset(); $("adjuntos").value = "";
+      $("recibo").textContent = `${result.yaExistia ? "Ya existía una anulación registrada para este pasajero.\n" : ""}Folio: ${result.folio}\nRecepción: ${new Date(result.recibidoEn).toLocaleString("es-CL", { timeZone: "America/Santiago" })} (Chile)`;
+      state.pending = null; state.session = null; state.politicasToken = "";
+      $("solicitud").reset();
       $("estado").classList.add("hidden"); $("confirmacion").focus();
     } finally { $("campos").disabled = false; }
   });
@@ -348,7 +334,7 @@ async function cargarGrupoDesdeEnlace() {
     seleccionarGrupo(respuesta.grupo, true);
     $("grupoEnlaceEstado").classList.add("hidden");
   });
-  if (state.grupo) {
+  if (state.grupo && state.politicasToken) {
     $("rutPasajero").focus({ preventScroll: true });
   } else {
     $("grupoEnlaceEstado").textContent = "No pudimos cargar el grupo de este enlace. Reintenta o contacta a anulaciones@raitrai.cl indicando el enlace recibido.";
@@ -358,3 +344,63 @@ async function cargarGrupoDesdeEnlace() {
 }
 $("reintentarGrupoEnlace").addEventListener("click", cargarGrupoDesdeEnlace);
 cargarGrupoDesdeEnlace();
+
+async function cargarPoliticasAnulacion() {
+  const estado = $("politicasEstado");
+  estado.textContent = "Cargando las políticas de anulación…";
+  $("continuarPoliticas").disabled = true;
+  try {
+    const d = await api("obtenerPoliticas");
+    if (!Array.isArray(d.resumen) || !Array.isArray(d.detalle) || !d.versionPoliticas || !d.textoAceptacion) {
+      throw new Error("No pudimos cargar las políticas completas. Recarga la página antes de continuar.");
+    }
+    state.politicasData = d;
+    const resumen = $("politicasResumen"); resumen.replaceChildren();
+    for (const texto of d.resumen) { const li = document.createElement("li"); li.textContent = texto; resumen.append(li); }
+    const detalle = $("politicasDetalle"); detalle.replaceChildren();
+    for (const seccion of d.detalle) {
+      const h = document.createElement("h3"); h.textContent = seccion.titulo; detalle.append(h);
+      if (seccion.filas) {
+        const wrap = document.createElement("div"); wrap.className = "tabla-politicas";
+        const tabla = document.createElement("table");
+        const thead = document.createElement("thead"); const tr = document.createElement("tr");
+        for (const texto of ["Anticipación a la salida", "Retención"]) { const th = document.createElement("th"); th.scope = "col"; th.textContent = texto; tr.append(th); }
+        thead.append(tr); tabla.append(thead);
+        const tbody = document.createElement("tbody");
+        for (const fila of seccion.filas) {
+          const tr = document.createElement("tr");
+          for (const texto of fila) { const td = document.createElement("td"); td.textContent = texto; tr.append(td); }
+          tbody.append(tr);
+        }
+        tabla.append(tbody); wrap.append(tabla); detalle.append(wrap);
+      } else { const p = document.createElement("p"); p.textContent = seccion.texto; detalle.append(p); }
+    }
+    $("textoAceptacionPoliticas").textContent = d.textoAceptacion;
+    $("aceptaPoliticas").disabled = false;
+    estado.textContent = ""; estado.classList.add("hidden");
+    actualizarBotonPoliticas();
+  } catch(e) {
+    estado.textContent = `${e.message} Si persiste, contacta a anulaciones@raitrai.cl.`;
+    estado.classList.add("error");
+  }
+}
+function actualizarBotonPoliticas() {
+  $("continuarPoliticas").disabled = state.busy || !state.politicasData || !$("aceptaPoliticas").checked;
+}
+$("aceptaPoliticas").addEventListener("change", () => {
+  limpiarErrorCampo("aceptaPoliticas"); actualizarBotonPoliticas();
+});
+$("continuarPoliticas").addEventListener("click", () => accion(async () => {
+  if (!state.politicasData || !$("aceptaPoliticas").checked) errorCampo("aceptaPoliticas", "Lee y acepta las políticas de anulación antes de continuar.");
+  const d = await api("aceptarPoliticas", {
+    versionPoliticas: state.politicasData.versionPoliticas, aceptaPoliticas: true,
+    idGrupo: state.grupo?.groupDocId || ""
+  });
+  if (!d.politicasToken) throw new Error("No pudimos registrar la aceptación de políticas. Reintenta.");
+  state.politicasToken = d.politicasToken;
+  $("politicasPrevias").classList.add("hidden");
+  $("identificacion").classList.remove("hidden");
+  $("estado").textContent = ""; $("estado").classList.add("hidden");
+  $("identificacion").scrollIntoView({ behavior: "smooth", block: "start" });
+}));
+cargarPoliticasAnulacion();
