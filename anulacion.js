@@ -117,7 +117,7 @@ function mostrarRetoCorreo(d) {
 }
 $("rutPasajero").addEventListener("input", () => { reiniciarVerificacion(); limpiarErrorCampo("rutPasajero"); });
 $("pedirCodigo").addEventListener("click", () => accion(async () => {
-  if (!state.politicasToken) throw new Error("Primero lee y acepta las políticas de anulación.");
+  if (!state.politicasToken) throw new Error("Primero confirma que has leído y comprendido la información de anulación.");
   if (!state.grupo) errorCampo("idGrupo", "Busca y selecciona tu grupo antes de continuar.");
   if (!rutConGuion(val("rutPasajero"))) errorCampo("rutPasajero", "Ingresa el RUT de la persona que viaja con guion y dígito verificador, por ejemplo 12345678-5.");
   if (!rut(val("rutPasajero"))) errorCampo("rutPasajero", "El dígito verificador del RUT no es correcto. Compruébalo antes de continuar.");
@@ -235,7 +235,7 @@ function erroresDatosFormulario() {
     const value = String(el.value || "").trim();
     if (el.type === "checkbox") {
       if (el.required && !el.checked) {
-        const textos = { solicita: "Debes confirmar tu decisión definitiva de anular la participación del pasajero.", representa: "Debes aceptar la declaración de representación y veracidad de los datos.", transferencia: "Debes aceptar la declaración de titularidad y uso de la cuenta bancaria.", tratamiento: "Debes autorizar el uso de los datos para gestionar la anulación." };
+        const textos = { solicita: "Debes confirmar tu decisión de anular y aceptar las políticas aplicables según el contrato del grupo.", representa: "Debes aceptar la declaración de representación y veracidad de los datos.", transferencia: "Debes aceptar la declaración de titularidad y uso de la cuenta bancaria.", tratamiento: "Debes autorizar el uso de los datos para gestionar la anulación." };
         add(el.id, textos[el.id.replace("decl_", "")] || "Debes aceptar esta declaración para continuar.");
       }
       continue;
@@ -393,12 +393,12 @@ $("aceptaPoliticas").addEventListener("change", () => {
   limpiarErrorCampo("aceptaPoliticas"); actualizarBotonPoliticas();
 });
 $("continuarPoliticas").addEventListener("click", () => accion(async () => {
-  if (!state.politicasData || !$("aceptaPoliticas").checked) errorCampo("aceptaPoliticas", "Lee y acepta las políticas de anulación antes de continuar.");
+  if (!state.politicasData || !$("aceptaPoliticas").checked) errorCampo("aceptaPoliticas", "Confirma que has leído y comprendido la información antes de continuar.");
   const d = await api("aceptarPoliticas", {
     versionPoliticas: state.politicasData.versionPoliticas, aceptaPoliticas: true,
     idGrupo: state.grupo?.groupDocId || ""
   });
-  if (!d.politicasToken) throw new Error("No pudimos registrar la aceptación de políticas. Reintenta.");
+  if (!d.politicasToken) throw new Error("No pudimos registrar la constancia de lectura. Reintenta.");
   state.politicasToken = d.politicasToken;
   $("politicasPrevias").classList.add("hidden");
   $("identificacion").classList.remove("hidden");
