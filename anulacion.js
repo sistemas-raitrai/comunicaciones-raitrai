@@ -22,7 +22,7 @@ async function accion(fn) {
   buttons.forEach(([b]) => b.disabled = true);
   let error;
   try { await fn(); } catch(e) { error = e; }
-  finally { state.busy = false; buttons.forEach(([b, disabled]) => b.disabled = disabled); $("pedirCodigo").disabled = !state.grupo || !state.politicasToken; actualizarBotonPoliticas(); }
+  finally { state.busy = false; buttons.forEach(([b, disabled]) => b.disabled = disabled); $("pedirCodigo").disabled = !state.grupo || !state.politicasToken; $("aceptaPoliticas").disabled = !state.politicasData; actualizarBotonPoliticas(); }
   if (error) presentarError(error);
 }
 function rut(v) {
@@ -334,8 +334,10 @@ async function cargarGrupoDesdeEnlace() {
     seleccionarGrupo(respuesta.grupo, true);
     $("grupoEnlaceEstado").classList.add("hidden");
   });
-  if (state.grupo && state.politicasToken) {
-    $("rutPasajero").focus({ preventScroll: true });
+  if (state.grupo) {
+    $("grupoEnlaceEstado").classList.add("hidden");
+    $("reintentarGrupoEnlace").classList.add("hidden");
+    if (state.politicasToken) $("rutPasajero").focus({ preventScroll: true });
   } else {
     $("grupoEnlaceEstado").textContent = "No pudimos cargar el grupo de este enlace. Reintenta o contacta a anulaciones@raitrai.cl indicando el enlace recibido.";
     $("grupoEnlaceEstado").classList.add("error");
